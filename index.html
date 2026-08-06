@@ -482,7 +482,8 @@
             gap: 20px;
             flex-wrap: wrap;
             width: 100%;
-            pointer-events: none;
+            margin: 0 auto;
+            /* remove position:absolute, top, left, right, width:auto */
         }
         .top-section > * { pointer-events: auto; }
         .top-section .top-students-section {
@@ -1066,10 +1067,22 @@
         .form-section { margin-bottom: 20px; }
         .form-section-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 8px; }
 
-        .class-fee-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px; overflow-x: auto; display: block; }
-        .class-fee-table table { min-width: 1200px; }
+        .class-fee-table {
+            width: 100%;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-size: 10px;
+        }
+        .class-fee-table table {
+            min-width: 1200px;
+            display: table; /* ensure it behaves as a table */
+        }
         .class-fee-table th { background: #1E3A5F; color: white; padding: 6px 4px; font-size: 9px; text-align: center; white-space: nowrap; }
         .class-fee-table td { padding: 4px 2px; border-bottom: 1px solid #E2E8F0; text-align: center; }
+        .total-col {
+            background: #FEF3C7 !important;
+            font-weight: 700;
+        }
 
         .annual-badge { display: inline-block; background: #1E3A5F; color: #F59E0B; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
         .re-admission-badge { display: inline-block; background: #F59E0B; color: #1E3A5F; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
@@ -1315,6 +1328,64 @@
 
         @media (max-width: 768px) {
             .meeting-video-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Added for student self-profile attendance */
+        .attendance-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .attendance-stat-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 14px;
+            text-align: center;
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
+        }
+        .attendance-stat-card .stat-number {
+            font-size: 26px;
+            font-weight: 800;
+        }
+        .attendance-stat-card .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .attendance-status-card {
+            background: rgba(34,197,94,0.1);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            border: 1px solid #22C55E;
+            margin-bottom: 12px;
+        }
+        .attendance-status-card .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .attendance-status-card .status-row .status-label {
+            font-weight: 700;
+            margin-left: 8px;
+        }
+        .attendance-status-card .status-percentage {
+            font-size: 22px;
+            font-weight: 800;
+        }
+        .attendance-status-card .status-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .attendance-status-card .status-bar .bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 1s ease;
         }
     </style>
 </head>
@@ -5097,79 +5168,130 @@ function doLogin() {
     const id = document.getElementById('loginId')?.value?.trim() || '';
     const pwd = document.getElementById('loginPassword')?.value?.trim() || '';
 
-    let ok = false;
-
-    try {
-        if (id) {
-            const curSchool = getCurrentSchool();
-            const schoolSuspended = curSchool && curSchool.status === 'suspended';
-
-            const superAdminCreds = Storage.get('sfaSuperAdminAuth', { email: 'superadmin@stfrancis.edu', password: 'superadmin123' });
-            if (id === (superAdminCreds.email || 'superadmin@stfrancis.edu') && pwd === (superAdminCreds.password || 'superadmin123')) {
-                State.currentUser = { name: 'System Administrator', role: 'Admin', type: 'superadmin' };
-                ok = true;
-            }
-
-            if (!ok && schoolSuspended) {
-                if (errorEl) {
-                    errorEl.textContent = '🚫 This school\'s account has been suspended. Please contact the system administrator.';
-                    errorEl.classList.add('show');
-                }
-                return false;
-            }
-
-            if (!ok) {
-                const principalCreds = Storage.get('sfaPrincipalAuth', { email: 'principal@stfrancis.edu', password: 'admin123' });
-                if (id === (principalCreds.email || 'principal@stfrancis.edu') && pwd === (principalCreds.password || 'admin123')) {
-                    if (principalCreds.enabled === false) { return loginBlocked(errorEl, 'Principal'); }
-                    State.currentUser = { name: 'Fr. Michael Rodrigues', role: 'Principal', type: 'admin' };
-                    ok = true;
-                }
-            }
-
-            if (!ok) {
-                const accountantCreds = Storage.get('sfaAccountantAuth', { email: 'accounts@stfrancis.edu', password: 'account123' });
-                if (id === (accountantCreds.email || 'accounts@stfrancis.edu') && pwd === (accountantCreds.password || 'account123')) {
-                    if (accountantCreds.enabled === false) { return loginBlocked(errorEl, 'Accountant'); }
-                    State.currentUser = { name: 'Mr. Thomas Matthew', role: 'Accountant', type: 'accountant' };
-                    ok = true;
-                }
-            }
-        }
-    } catch (e) {
-        console.error('Login error:', e);
+    // Check if fields are empty
+    if (!id || !pwd) {
         if (errorEl) {
-            errorEl.textContent = '❌ System error: ' + e.message;
+            errorEl.textContent = '❌ Please enter both ID and password.';
+            errorEl.classList.add('show');
+        }
+        shakeCard();
+        return false;
+    }
+
+    // Define all roles
+    const roles = [
+        { 
+            key: 'sfaSuperAdminAuth', 
+            type: 'superadmin', 
+            name: 'Super Admin', 
+            default: { email: 'superadmin@stfrancis.edu', password: 'superadmin123' },
+            displayName: 'System Administrator'
+        },
+        { 
+            key: 'sfaPrincipalAuth', 
+            type: 'admin', 
+            name: 'Principal', 
+            default: { email: 'principal@stfrancis.edu', password: 'admin123' },
+            displayName: 'Fr. Michael Rodrigues'
+        },
+        { 
+            key: 'sfaAccountantAuth', 
+            type: 'accountant', 
+            name: 'Accountant', 
+            default: { email: 'accounts@stfrancis.edu', password: 'account123' },
+            displayName: 'Mr. Thomas Matthew'
+        }
+    ];
+
+    // Step 1: Find which role has this ID
+    let foundRole = null;
+    let foundCreds = null;
+    let foundEmail = null;
+
+    for (const role of roles) {
+        try {
+            const creds = Storage.get(role.key, {});
+            const email = creds.email || role.default.email;
+            if (id === email) {
+                foundRole = role;
+                foundCreds = creds;
+                foundEmail = email;
+                break;
+            }
+        } catch (e) {
+            // Storage error, skip
+        }
+    }
+
+    // If ID doesn't match any role
+    if (!foundRole) {
+        if (errorEl) {
+            errorEl.textContent = '❌ User not found. Please check your ID.';
+            errorEl.classList.add('show');
+        }
+        shakeCard();
+        return false;
+    }
+
+    // Step 2: Check password
+    const expectedPwd = foundCreds.password || foundRole.default.password;
+    if (pwd !== expectedPwd) {
+        if (errorEl) {
+            errorEl.textContent = '❌ Password is wrong. Please try again.';
+            errorEl.classList.add('show');
+        }
+        shakeCard();
+        return false;
+    }
+
+    // Step 3: Check if account is enabled (Principal/Accountant only)
+    if (foundCreds.enabled === false) {
+        if (errorEl) {
+            errorEl.textContent = '🚫 This ' + foundRole.name + ' account has been disabled. Please contact the system administrator.';
             errorEl.classList.add('show');
         }
         return false;
     }
 
-    if (ok) {
-        try {
-            startApp();
-            showToast('✅ Welcome, ' + State.currentUser.name + '!', 'success');
-        } catch (e) {
-            console.error('Start app error:', e);
-            if (errorEl) {
-                errorEl.textContent = '❌ Error loading app: ' + e.message;
-                errorEl.classList.add('show');
-            }
-            document.getElementById('loginPage').style.display = 'flex';
-            document.getElementById('appContainer').style.display = 'none';
-        }
-    } else {
+    // Step 4: Check school suspension (Super Admin bypasses this)
+    const curSchool = getCurrentSchool();
+    if (foundRole.type !== 'superadmin' && curSchool && curSchool.status === 'suspended') {
         if (errorEl) {
-            errorEl.textContent = '❌ Invalid credentials. Please check and try again.';
+            errorEl.textContent = '🚫 This school\'s account has been suspended. Please contact the system administrator.';
             errorEl.classList.add('show');
         }
-        const card = document.getElementById('loginCard');
-        if (card) {
-            card.style.animation = 'shake 0.4s ease';
-            setTimeout(() => { card.style.animation = ''; }, 500);
+        return false;
+    }
+
+    // Step 5: ALL CHECKS PASSED → LOGIN SUCCESS
+    State.currentUser = {
+        name: foundRole.displayName,
+        role: foundRole.name,
+        type: foundRole.type
+    };
+
+    try {
+        startApp();
+        showToast('✅ Welcome, ' + State.currentUser.name + '!', 'success');
+    } catch (e) {
+        console.error('Start app error:', e);
+        if (errorEl) {
+            errorEl.textContent = '❌ Error loading app: ' + e.message;
+            errorEl.classList.add('show');
         }
+        document.getElementById('loginPage').style.display = 'flex';
+        document.getElementById('appContainer').style.display = 'none';
     }
     return false;
+}
+
+// Helper function to shake the login card on error
+function shakeCard() {
+    const card = document.getElementById('loginCard');
+    if (card) {
+        card.style.animation = 'shake 0.4s ease';
+        setTimeout(() => { card.style.animation = ''; }, 500);
+    }
 }
 
 if (!document.getElementById('shakeStyle')) {
@@ -5224,7 +5346,13 @@ function startQRScanner() {
     if (errorEl) errorEl.classList.remove('show');
     if (btn) btn.textContent = '📷 Scanning...';
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.jsQR) {
+    if (typeof window.jsQR === 'undefined') {
+        showToast('QR library not loaded. Please refresh the page.', 'error');
+        if (btn) btn.textContent = '📷 Staff / Student Login with QR Code';
+        return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showToast('QR scanning is not supported in this browser.', 'error');
         if (btn) btn.textContent = '📷 Staff / Student Login with QR Code';
         return;
@@ -6685,7 +6813,7 @@ function showTeacherSigninQR() {
     const data = { type: 'attendance', action: 'teacher-signin', date: date, school: 'St. Francis of Assisi School' };
     display.innerHTML = '';
     if (typeof QRCode === 'undefined') {
-        showToast('❌ QR code library failed to load. Please reload the app.', 'error');
+        showToast('QR code library failed to load. Please refresh.', 'error');
         return;
     }
     try {
@@ -6713,7 +6841,7 @@ function showSubstituteQR(teacherId, date) {
     if (info) info.textContent = 'Absent: ' + teacher.name + ' (' + teacher.employeeId + ') • Class: ' + teacher.classTeacher + ' • Date: ' + date;
     display.innerHTML = '';
     if (typeof QRCode === 'undefined') {
-        display.innerHTML = '<p style="color:#EF4444;">QR code library failed to load.</p>';
+        showToast('QR code library failed to load. Please refresh.', 'error');
         return;
     }
     try {
@@ -7164,8 +7292,7 @@ function generateQR(type) {
 
     display.innerHTML = '';
     if (typeof QRCode === 'undefined') {
-        display.innerHTML = '<p style="color:#EF4444;">QR code library failed to load. Please refresh.</p>';
-        showToast('❌ QR code library failed to load.', 'error');
+        showToast('QR code library failed to load. Please refresh.', 'error');
         return;
     }
     try {
@@ -8501,6 +8628,10 @@ function sendMeetingMessage() {
 
 // ---- Video Call ----
 function initMeetingVideo() {
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+        setMeetingCallStatus('❌ Video calls require HTTPS or localhost.');
+        return;
+    }
     const localVideo = document.getElementById('meetingLocalVideo');
     if (!localVideo) return;
     if (meetingLocalStream) { setMeetingCallStatus('📷 Camera ready. Copy your invite code and share it with your partner.'); return; }
@@ -9359,11 +9490,15 @@ console.log('📚 General Applications:', State.generalApplications.length);
 
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(() => {
-    console.log('✅ Service Worker registered');
-  }).catch(err => {
-    console.log('❌ Service Worker registration failed:', err);
-  });
+    fetch('sw.js', { method: 'HEAD' })
+        .then(res => {
+            if (res.ok) {
+                navigator.serviceWorker.register('sw.js')
+                    .then(() => console.log('✅ SW registered'))
+                    .catch(err => console.log('SW registration failed:', err));
+            }
+        })
+        .catch(() => console.log('sw.js not found, skipping registration.'));
 }
 </script>
 </body>
