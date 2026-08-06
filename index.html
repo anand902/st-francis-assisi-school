@@ -18,6 +18,7 @@
     <script src="assets/vendor/apexcharts.min.js"></script>
     <script src="assets/vendor/qrcode.min.js"></script>
     <script src="assets/vendor/jsqr.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
         :root {
@@ -61,38 +62,36 @@
         body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; }
 
         /* Login Page */
-        /* ===== CENTERED LAYOUT: CONTENT LEFT, LOGIN CARD CENTERED ===== */
+        /* ===== CENTERED LAYOUT: CONTENT ON TOP, LOGIN CARD CENTERED ===== */
         .login-page {
             min-height: 100vh;
             height: 100vh;
             overflow-y: auto;
             background: linear-gradient(135deg, #0F172A, #1E3A5F, #2563EB);
-            padding: 24px 16px;
-            position: relative;
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: center;
-            gap: 40px;
-            flex-wrap: wrap;
-        }
-        .login-page .login-left {
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            margin: 0;
-            padding: 18px 16px 0;
+            padding: 28px 16px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: flex-start;
+            gap: 20px;
+        }
+        .login-page .login-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            width: 100%;
+            max-width: 1100px;
             pointer-events: none;
         }
         .login-page .login-left > * { pointer-events: auto; }
         .login-center {
-            position: relative;
-            z-index: 5;
+            flex: 1;
+            min-height: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
             gap: 14px;
             width: 100%;
             max-width: 450px;
@@ -477,18 +476,12 @@
 
         /* Top Row */
         .top-section {
-            position: absolute;
-            top: 2in;
-            left: 24px;
-            right: 24px;
-            width: auto;
-            max-width: none;
-            margin: 0;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             gap: 20px;
             flex-wrap: wrap;
+            width: 100%;
             pointer-events: none;
         }
         .top-section > * { pointer-events: auto; }
@@ -715,21 +708,18 @@
         }
         @media (max-width: 768px) {
             .login-page {
-                flex-direction: column;
-                gap: 20px;
+                gap: 16px;
             }
             .login-page .login-left {
-                position: static;
                 width: 100%;
                 max-width: 400px;
-                padding: 0;
-                pointer-events: auto;
+                gap: 16px;
             }
             .top-section {
-                position: static;
                 flex-direction: column;
-                width: 95%;
-                margin: 0 auto 20px;
+                align-items: center;
+                width: 100%;
+                margin: 0;
                 gap: 20px;
             }
             .top-section .top-students-section {
@@ -754,7 +744,7 @@
             .top-section .admission-card {
                 flex: 1;
                 flex-direction: column;
-            padding: 0;
+                padding: 0;
                 gap: 4px;
             }
             .top-section .admission-card .icon {
@@ -771,9 +761,8 @@
             }
         }
 
-        /* Login Card - centered, lower */
+        /* Login Card - centered in remaining space */
         .login-card {
-            margin-top: 2in;
             width: 380px;
             max-width: 95%;
             border-radius: 18px;
@@ -878,15 +867,12 @@
         }
         .login-card .error-msg.show { display: block; }
         .login-version {
-            position: fixed;
-            bottom: 24px;
-            left: 20px;
             font-size: 11px;
             font-weight: 600;
             color: rgba(255,255,255,0.75);
             letter-spacing: 0.5px;
             pointer-events: none;
-            z-index: 1000;
+            text-align: center;
         }
         .header-school-select {
             padding: 6px 10px;
@@ -1384,19 +1370,16 @@
             <!-- Error Message -->
             <div class="error-msg" id="loginError"></div>
 
-            <!-- Login Form -->
+            <!-- ID / Password Login (always visible) -->
             <form class="login-form active" id="form-login" onsubmit="return doLogin()">
                 <div class="form-group"><label>ID</label><input type="text" class="form-input" id="loginId" autocomplete="username" placeholder="Email / Employee ID / Admission No." /></div>
                 <div class="form-group"><label>Password</label><input type="password" class="form-input" id="loginPassword" autocomplete="current-password" placeholder="Password (students use DOB)" /></div>
                 <button type="button" onclick="doLogin()" class="btn-block btn-primary">🔐 Sign In</button>
             </form>
 
-            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 8px;">
-                <div style="flex:1;height:1px;background:var(--border);"></div>
-                <span style="font-size:9px;color:var(--text-secondary);font-weight:600;">OR</span>
-                <div style="flex:1;height:1px;background:var(--border);"></div>
-            </div>
+            <div style="text-align:center;margin:12px 0;color:var(--text-secondary);font-size:10px;font-weight:600;">— or —</div>
 
+            <!-- QR Code Login (optional) -->
             <button type="button" onclick="toggleQRScanner()" class="btn-block btn-gold" id="qrLoginToggleBtn">📷 Staff / Student Login with QR Code</button>
 
             <div id="qrLoginScanner" style="display:none;">
@@ -2700,83 +2683,6 @@
                 </div>
             </div>
 
-            <!-- ID Card Generator (Principal) -->
-            <div class="page" id="page-id-cards">
-                <h2>🪪 ID Card Generator <span class="annual-badge">PRINCIPAL ONLY</span></h2>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Design one ID card and print it for students, teachers and support staff. Cards print 10 per A4 page in landscape.</p>
-
-                <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;">
-                    <div>
-                        <div class="form-card">
-                            <h2 style="margin-bottom:14px;">✏️ Card Design</h2>
-
-                            <div class="form-section">
-                                <h3 class="form-section-title">🖼️ Card Background (One for All)</h3>
-                                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">This background is used for every card - students, teachers and support staff.</p>
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
-                                    <div id="idcardBgPreview" style="width:140px;height:90px;border-radius:10px;border:2px dashed var(--border);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:11px;text-align:center;overflow:hidden;">No background<br>chosen</div>
-                                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-                                        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('idcardBgInput').click()">📤 Upload Background</button>
-                                        <button type="button" class="btn btn-danger btn-sm" id="idcardBgRemoveBtn" style="display:none;" onclick="removeIdCardBg()">🗑️ Remove</button>
-                                    </div>
-                                    <input type="file" id="idcardBgInput" accept="image/*" style="display:none;" onchange="compressIdCardBg(this)" />
-                                    <div class="compressing-indicator" id="idcardBgCompressing" style="justify-content:center;"><div class="spinner"></div><span>Compressing...</span></div>
-                                </div>
-                            </div>
-
-                            <div class="form-section">
-                                <h3 class="form-section-title">📋 Fields on Card</h3>
-                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowPhoto" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Student / Staff Photo</label>
-                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowId" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> ID Number</label>
-                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowClass" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Class / Designation</label>
-                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowExtra" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Father's Name / Subject</label>
-                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowContact" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Phone / Mobile</label>
-                            </div>
-
-                            <div class="form-section">
-                                <h3 class="form-section-title">🖼️ Photo Shape</h3>
-                                <select class="form-input" id="idcardPhotoShape" onchange="saveIdCardSettings()">
-                                    <option value="rounded">Rounded Rectangle</option>
-                                    <option value="round">Round (Circle)</option>
-                                </select>
-                            </div>
-
-                            <div class="form-section">
-                                <h3 class="form-section-title">🎨 Preview &amp; Print Set</h3>
-                                <div class="form-group"><label>Card Type</label>
-                                    <select class="form-input" id="idcardType" onchange="loadIdCardPreview()">
-                                        <option value="students">👨‍🎓 Students</option>
-                                        <option value="teachers">👨‍🏫 Teachers</option>
-                                        <option value="staff">👷 Support Staff</option>
-                                    </select>
-                                </div>
-                                <div class="form-group" id="idcardClassWrap" style="display:none;"><label>Print Students</label>
-                                    <select class="form-input" id="idcardClassFilter" onchange="loadIdCardPreview()"></select>
-                                </div>
-                                <div class="form-group"><label>Preview Person</label>
-                                    <select class="form-input" id="idcardPreviewPerson" onchange="loadIdCardPreview()"></select>
-                                </div>
-                            </div>
-
-                            <button class="btn btn-primary btn-block" onclick="printIdCards()">🖨️ Print ID Cards</button>
-                            <div style="font-size:11px;color:var(--text-secondary);margin-top:8px;text-align:center;">10 cards per A4 page &middot; Landscape</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="form-card" style="text-align:center;">
-                            <h2 style="margin-bottom:4px;">👁️ Live Preview <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">(portrait card &middot; prints in landscape)</span></h2>
-                            <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">The preview shows one card in portrait. When printed, cards are laid out 10 per A4 landscape page.</p>
-                            <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
-                                <div id="idcardPreviewStudent"></div>
-                                <div id="idcardPreviewTeacher"></div>
-                                <div id="idcardPreviewStaff"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Super Admin: System Overview -->
             <div class="page" id="page-super-dashboard">
                 <h2>🛡️ System Overview <span class="annual-badge">SUPER ADMIN</span></h2>
@@ -2959,9 +2865,10 @@
 
                     <div class="form-section">
                         <h3 class="form-section-title">➕ Add New School</h3>
-                        <div class="form-grid" style="grid-template-columns:2fr 1fr auto;">
+                        <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr auto;">
                             <div class="form-group"><label>School Name *</label><input type="text" class="form-input" id="newSchoolName" placeholder="e.g. St. Francis of Assisi School" /></div>
                             <div class="form-group"><label>Tagline</label><input type="text" class="form-input" id="newSchoolTagline" placeholder='e.g. "Pax et Bonum" - Peace and Goodness' /></div>
+                            <div class="form-group"><label>Domain</label><input type="text" class="form-input" id="newSchoolDomain" placeholder="e.g. school.example.com" /></div>
                             <div style="display:flex;align-items:flex-end;padding-bottom:4px;"><button type="button" class="btn btn-primary" onclick="addSchool()">➕ Add School</button></div>
                         </div>
                     </div>
@@ -2969,6 +2876,83 @@
                     <div class="form-section">
                         <h3 class="form-section-title">🏫 Registered Schools <span id="schoolCount" style="opacity:0.7;font-weight:500;"></span></h3>
                         <div id="schoolList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Super Admin: ID Card Generator -->
+            <div class="page" id="page-id-cards">
+                <h2>🪪 ID Card Generator <span class="annual-badge">SUPER ADMIN ONLY</span></h2>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Design one ID card and print it for students, teachers and support staff of the currently selected school. Cards print 10 per A4 page in landscape.</p>
+
+                <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;">
+                    <div>
+                        <div class="form-card">
+                            <h2 style="margin-bottom:14px;">✏️ Card Design</h2>
+
+                            <div class="form-section">
+                                <h3 class="form-section-title">🖼️ Card Background (One for All)</h3>
+                                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">This background is used for every card - students, teachers and support staff.</p>
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+                                    <div id="idcardBgPreview" style="width:140px;height:90px;border-radius:10px;border:2px dashed var(--border);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:11px;text-align:center;overflow:hidden;">No background<br>chosen</div>
+                                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('idcardBgInput').click()">📤 Upload Background</button>
+                                        <button type="button" class="btn btn-danger btn-sm" id="idcardBgRemoveBtn" style="display:none;" onclick="removeIdCardBg()">🗑️ Remove</button>
+                                    </div>
+                                    <input type="file" id="idcardBgInput" accept="image/*" style="display:none;" onchange="compressIdCardBg(this)" />
+                                    <div class="compressing-indicator" id="idcardBgCompressing" style="justify-content:center;"><div class="spinner"></div><span>Compressing...</span></div>
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h3 class="form-section-title">📋 Fields on Card</h3>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowPhoto" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Student / Staff Photo</label>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowId" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> ID Number</label>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowClass" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Class / Designation</label>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowExtra" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Father's Name / Subject</label>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="idcardShowContact" style="width:16px;height:16px;" onchange="saveIdCardSettings()"> Phone / Mobile</label>
+                            </div>
+
+                            <div class="form-section">
+                                <h3 class="form-section-title">🖼️ Photo Shape</h3>
+                                <select class="form-input" id="idcardPhotoShape" onchange="saveIdCardSettings()">
+                                    <option value="rounded">Rounded Rectangle</option>
+                                    <option value="round">Round (Circle)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-section">
+                                <h3 class="form-section-title">🎨 Preview &amp; Print Set</h3>
+                                <div class="form-group"><label>Card Type</label>
+                                    <select class="form-input" id="idcardType" onchange="loadIdCardPreview()">
+                                        <option value="students">👨‍🎓 Students</option>
+                                        <option value="teachers">👨‍🏫 Teachers</option>
+                                        <option value="staff">👷 Support Staff</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="idcardClassWrap" style="display:none;"><label>Print Students</label>
+                                    <select class="form-input" id="idcardClassFilter" onchange="loadIdCardPreview()"></select>
+                                </div>
+                                <div class="form-group"><label>Preview Person</label>
+                                    <select class="form-input" id="idcardPreviewPerson" onchange="loadIdCardPreview()"></select>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-block" onclick="printIdCards()">🖨️ Print ID Cards</button>
+                            <div style="font-size:11px;color:var(--text-secondary);margin-top:8px;text-align:center;">10 cards per A4 page &middot; Landscape</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="form-card" style="text-align:center;">
+                            <h2 style="margin-bottom:4px;">👁️ Live Preview <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">(portrait card &middot; prints in landscape)</span></h2>
+                            <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">The preview shows one card in portrait. When printed, cards are laid out 10 per A4 landscape page.</p>
+                            <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
+                                <div id="idcardPreviewStudent"></div>
+                                <div id="idcardPreviewTeacher"></div>
+                                <div id="idcardPreviewStaff"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2989,6 +2973,21 @@
 
 const CLASS_LIST = ['LKG','UKG','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 const SUBJECTS = ['English','Mathematics','Science','Social Studies','Hindi','Computer Science','Arts','Physical Education','Music','Moral Science'];
+
+// ============================================================================
+// SUPABASE CLIENT (optional - must not break the app if CDN is unavailable)
+// ============================================================================
+let supabase = null;
+try {
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(
+          "https://vtpejwzckzimtesevbps.supabase.co",
+          "sb_publishable__k0Ecw-bMjIfxADPmKPMtQ_PZ0fvK3q"
+        );
+    }
+} catch (e) {
+    console.warn('Supabase client unavailable:', e);
+}
 
 // ============================================================================
 // SUBJECTS (dynamic, principal can add/remove)
@@ -3063,14 +3062,14 @@ const DEFAULT_FEES = {
 // ============================================================================
 
 const DEFAULT_SCHOOLS = [
-    { id: 's1', name: 'St. Francis of Assisi School', tagline: '"Pax et Bonum" - Peace and Goodness', status: 'active' },
-    { id: 's2', name: 'St. Mary Convent School', tagline: 'Knowledge is Power', status: 'active' },
-    { id: 's3', name: 'Green Valley Public School', tagline: 'Nurturing Tomorrow\'s Leaders', status: 'active' },
-    { id: 's4', name: 'Sunrise Academy', tagline: 'Bright Futures Begin Here', status: 'active' },
-    { id: 's5', name: 'Little Angels School', tagline: 'Learning with Love', status: 'active' },
-    { id: 's6', name: 'Holy Cross School', tagline: 'Wisdom and Virtue', status: 'active' },
-    { id: 's7', name: 'St. Joseph High School', tagline: 'Discipline and Devotion', status: 'active' },
-    { id: 's8', name: 'Sacred Heart School', tagline: 'Faith, Hope and Knowledge', status: 'active' }
+    { id: 's1', name: 'St. Francis of Assisi School', tagline: '"Pax et Bonum" - Peace and Goodness', domain: 'stfrancis.example.com', status: 'active' },
+    { id: 's2', name: 'St. Mary Convent School', tagline: 'Knowledge is Power', domain: 'stmary.example.com', status: 'active' },
+    { id: 's3', name: 'Green Valley Public School', tagline: 'Nurturing Tomorrow\'s Leaders', domain: 'greenvalley.example.com', status: 'active' },
+    { id: 's4', name: 'Sunrise Academy', tagline: 'Bright Futures Begin Here', domain: 'sunrise.example.com', status: 'active' },
+    { id: 's5', name: 'Little Angels School', tagline: 'Learning with Love', domain: 'littleangels.example.com', status: 'active' },
+    { id: 's6', name: 'Holy Cross School', tagline: 'Wisdom and Virtue', domain: 'holycross.example.com', status: 'active' },
+    { id: 's7', name: 'St. Joseph High School', tagline: 'Discipline and Devotion', domain: 'stjoseph.example.com', status: 'active' },
+    { id: 's8', name: 'Sacred Heart School', tagline: 'Faith, Hope and Knowledge', domain: 'sacredheart.example.com', status: 'active' }
 ];
 
 const GLOBAL_KEYS = [
@@ -3090,8 +3089,9 @@ function getSchoolRegistry() {
         reg = JSON.parse(JSON.stringify(DEFAULT_SCHOOLS));
         try { localStorage.setItem('sfaSchoolRegistry', JSON.stringify(reg)); } catch (e) {}
     }
+    reg = reg.filter(s => s && typeof s === 'object' && s.id);
     let changed = false;
-    reg.forEach(s => { if (!s.status) { s.status = 'active'; changed = true; } });
+    reg.forEach(s => { if (!s.status) { s.status = 'active'; changed = true; } if (s.domain === undefined) { s.domain = ''; changed = true; } });
     if (changed) { try { localStorage.setItem('sfaSchoolRegistry', JSON.stringify(reg)); } catch (e) {} }
     return reg;
 }
@@ -3138,7 +3138,7 @@ function defaultSchoolSettings() {
 const Storage = {
     scope: (key) => GLOBAL_KEYS.includes(key) ? key : getCurrentSchoolId() + '::' + key,
     get: (key, defaultVal) => {
-        try { const data = localStorage.getItem(Storage.scope(key)); return data ? JSON.parse(data) : defaultVal; }
+        try { const data = localStorage.getItem(Storage.scope(key)); return data ? (JSON.parse(data) ?? defaultVal) : defaultVal; }
         catch { return defaultVal; }
     },
     set: (key, data) => {
@@ -3963,7 +3963,7 @@ function schoolStorageUsage(id) {
 function schoolGet(schoolId, key, defaultVal) {
     try {
         const raw = localStorage.getItem(schoolId + '::' + key);
-        return raw ? JSON.parse(raw) : defaultVal;
+        return raw ? (JSON.parse(raw) ?? defaultVal) : defaultVal;
     } catch (e) { return defaultVal; }
 }
 
@@ -4110,7 +4110,7 @@ function loadSchoolManager() {
             <span style="font-size:18px;flex-shrink:0;">🏫</span>
             <div style="flex:1;min-width:170px;">
                 <strong>${escapeHtml(s.name)}</strong>
-                <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(s.tagline || 'No tagline')} • 💾 ${schoolStorageUsage(s.id)}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(s.tagline || 'No tagline')}${s.domain ? ' • 🌐 ' + escapeHtml(s.domain) : ''} • 💾 ${schoolStorageUsage(s.id)}</div>
             </div>
             ${s.id === cur ? '<span class="badge badge-success">Current</span>' : ''}
             <span class="badge ${suspended ? 'badge-danger' : 'badge-success'}">${suspended ? 'Suspended' : 'Active'}</span>
@@ -4147,8 +4147,9 @@ function addSchool() {
         return;
     }
     const tagline = document.getElementById('newSchoolTagline').value.trim();
+    const domain = document.getElementById('newSchoolDomain').value.trim();
     const id = 's' + Date.now();
-    reg.push({ id, name, tagline });
+    reg.push({ id, name, tagline, domain });
     saveSchoolRegistry(reg);
     const cur = getCurrentSchool();
     const defaults = { ...defaultSchoolSettings(), schoolName: name, tagline: tagline };
@@ -4156,6 +4157,7 @@ function addSchool() {
     try { localStorage.setItem(settingsKey, JSON.stringify(defaults)); } catch (e) {}
     document.getElementById('newSchoolName').value = '';
     document.getElementById('newSchoolTagline').value = '';
+    document.getElementById('newSchoolDomain').value = '';
     loadSchoolManager();
     showToast('✅ School "' + name + '" added successfully!', 'success');
 }
@@ -4173,8 +4175,11 @@ function editSchool(id) {
     }
     const newTagline = prompt('Edit tagline:', school.tagline || '');
     if (newTagline === null) return;
+    const newDomain = prompt('Edit domain (e.g. school.example.com):', school.domain || '');
+    if (newDomain === null) return;
     school.name = trimmed;
     school.tagline = newTagline.trim();
+    school.domain = newDomain.trim();
     saveSchoolRegistry(reg);
     if (id === getCurrentSchoolId()) {
         State.schoolSettings.schoolName = trimmed;
@@ -4226,6 +4231,7 @@ function restoreAllData(payload) {
     let count = 0;
     for (const k of Object.keys(data)) {
         if (k === 'app' || k === 'version' || k === 'exportedAt') continue;
+        if (data[k] === null || data[k] === undefined) continue;
         try { localStorage.setItem(k, JSON.stringify(data[k])); count++; } catch (e) {}
     }
     return count;
@@ -5129,24 +5135,6 @@ function doLogin() {
                     ok = true;
                 }
             }
-
-            if (!ok) {
-                const teacher = State.teachers.find(t => t.employeeId === id);
-                if (teacher && pwd === (teacher.password || 'teacher123')) {
-                    if (teacher.enabled === false) { return loginBlocked(errorEl, 'Teacher'); }
-                    State.currentUser = { name: teacher.name, role: 'Teacher', type: 'teacher', id: teacher.id };
-                    ok = true;
-                }
-            }
-
-            if (!ok) {
-                const student = State.students.find(s => s.admissionNo === id);
-                if (student && pwd === (student.loginPasswordOverride || student.dob)) {
-                    if (student.enabled === false) { return loginBlocked(errorEl, 'Student'); }
-                    State.currentUser = { name: student.name, role: 'Student', type: 'student', id: student.id };
-                    ok = true;
-                }
-            }
         }
     } catch (e) {
         console.error('Login error:', e);
@@ -5466,6 +5454,8 @@ function buildSidebar() {
             <button class="nav-item" onclick="openPage('school-manage',this);loadSchoolManager();"><i class="fas fa-school"></i>Manage Schools</button>
             <button class="nav-item" onclick="openPage('user-manage',this);loadUserManage();"><i class="fas fa-users-cog"></i>User Management</button>
             <button class="nav-item" onclick="openPage('data-manage',this);"><i class="fas fa-database"></i>Data Management</button>
+            <div class="nav-section"><div class="nav-section-title">School Tools</div></div>
+            <button class="nav-item" onclick="openPage('id-cards',this);loadIdCardPage();"><i class="fas fa-id-card"></i>ID Cards</button>
         `;
     } else if (State.currentUser.type === 'admin') {
         items = `
@@ -5489,7 +5479,6 @@ function buildSidebar() {
             <button class="nav-item" onclick="openPage('principal-performance',this);loadPrincipalPerformance();"><i class="fas fa-trophy"></i>Teacher Performance</button>
             <div class="nav-section"><div class="nav-section-title">Administration</div></div>
             <button class="nav-item" onclick="openPage('school-settings',this);loadSchoolSettings();"><i class="fas fa-sliders-h"></i>School Settings</button>
-            <button class="nav-item" onclick="openPage('id-cards',this);loadIdCardPage();"><i class="fas fa-id-card"></i>ID Cards</button>
             <button class="nav-item" onclick="openPage('support-staff',this);loadSupportStaff();"><i class="fas fa-user-tie"></i>Support Staff</button>
             <div class="nav-section"><div class="nav-section-title">Meetings</div></div>
             <button class="nav-item" onclick="openPage('meetings',this);loadMeetingsPage();"><i class="fas fa-video"></i>Meetings</button>
@@ -5598,7 +5587,8 @@ function openPage(name, el) {
         'principal-performance':'Teacher Performance',
         'school-settings':'School Settings',
         'duplicates':'Duplicate Data Check',
-        'super-dashboard':'System Overview','admin-creds':'Admin Credentials','school-manage':'Manage Schools','user-manage':'User Management','data-manage':'Data Management'
+        'super-dashboard':'System Overview','admin-creds':'Admin Credentials','school-manage':'Manage Schools','user-manage':'User Management','data-manage':'Data Management',
+        'id-cards':'ID Card Generator'
     };
     document.getElementById('pageTitle').textContent = titles[name] || name;
     if (name === 'data-manage') loadServerSettings();
@@ -6694,6 +6684,10 @@ function showTeacherSigninQR() {
     const date = new Date().toISOString().split('T')[0];
     const data = { type: 'attendance', action: 'teacher-signin', date: date, school: 'St. Francis of Assisi School' };
     display.innerHTML = '';
+    if (typeof QRCode === 'undefined') {
+        showToast('❌ QR code library failed to load. Please reload the app.', 'error');
+        return;
+    }
     try {
         new QRCode(display, { text: JSON.stringify(data), width: 220, height: 220, colorDark: '#1E3A5F', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
         display.style.display = 'block';
@@ -6718,6 +6712,10 @@ function showSubstituteQR(teacherId, date) {
     panel.style.display = 'block';
     if (info) info.textContent = 'Absent: ' + teacher.name + ' (' + teacher.employeeId + ') • Class: ' + teacher.classTeacher + ' • Date: ' + date;
     display.innerHTML = '';
+    if (typeof QRCode === 'undefined') {
+        display.innerHTML = '<p style="color:#EF4444;">QR code library failed to load.</p>';
+        return;
+    }
     try {
         const data = { type: 'attendance', action: 'substitute', date: date, teacherId: teacher.id, teacherName: teacher.name, class: cls, section: sec, school: 'St. Francis of Assisi School' };
         new QRCode(display, { text: JSON.stringify(data), width: 180, height: 180, colorDark: '#1E3A5F', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
@@ -7165,6 +7163,11 @@ function generateQR(type) {
     const data = type === 'student' ? { type:'Student', admissionNo:person.admissionNo, name:person.name, class:person.class, section:person.section, father:person.fatherName || '', school:'St. Francis of Assisi School' } : { type:'Teacher', employeeId:person.employeeId, name:person.name, subject:person.subject, school:'St. Francis of Assisi School' };
 
     display.innerHTML = '';
+    if (typeof QRCode === 'undefined') {
+        display.innerHTML = '<p style="color:#EF4444;">QR code library failed to load. Please refresh.</p>';
+        showToast('❌ QR code library failed to load.', 'error');
+        return;
+    }
     try {
         new QRCode(display, { text: JSON.stringify(data), width:160, height:160, colorDark:'#1E3A5F', colorLight:'#FFFFFF', correctLevel:QRCode.CorrectLevel.H });
         State.qrCodes[type + '_' + id] = { data, generatedAt: new Date().toISOString() };
@@ -9006,7 +9009,7 @@ function removeAllDuplicates() {
 }
 
 // ============================================================================
-// ID CARD GENERATOR (Principal) - 10 cards per A4 landscape, one background for all
+// ID CARD GENERATOR (Super Admin) - 10 cards per A4 landscape, one background for all
 // ============================================================================
 
 let idCardSettings = Object.assign({
@@ -9031,8 +9034,8 @@ function saveIdCardSettings() {
 }
 
 function loadIdCardPage() {
-    if (State.currentUser && State.currentUser.type !== 'admin') {
-        showToast('Only Principal can use ID Card Generator', 'warning');
+    if (State.currentUser && State.currentUser.type !== 'admin' && State.currentUser.type !== 'superadmin') {
+        showToast('Only Super Admin can use ID Card Generator', 'warning');
         return;
     }
     document.getElementById('idcardShowPhoto').checked = idCardSettings.showPhoto;
