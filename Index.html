@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - St. Francis School</title>
+    <meta name="description" content="St. Francis of Assisi School - Login" />
+    <meta name="theme-color" content="#2563EB" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="icon-192.png" />
+    <link href="assets/vendor/googlefonts/fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/vendor/fontawesome/all.min.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <!-- ===== LOGIN PAGE ===== -->
+    <div class="login-page" id="loginPage">
+        <div class="login-left">
+            <div id="publicNotification" style="display:none;">📢 Admissions for 2026–27 are now open!</div>
+            <div class="top-section">
+                <div class="top-students-section">
+                    <div class="top-students-header">
+                        <h3>🏆 Top Performers</h3>
+                        <span class="top-students-year" id="topStudentsYear">2026–2027</span>
+                    </div>
+                    <div id="topStudentsContainer"></div>
+                </div>
+                <div class="admission-cards">
+                    <div class="admission-card ukg" onclick="openAdmissionModal('ukg')">
+                        <div class="icon">🎒</div>
+                        <div><h2>UKG Admission</h2><p>UKG Only • Direct Entry</p></div>
+                        <button class="btn">Apply ▶</button>
+                    </div>
+                    <div class="admission-card general" onclick="openAdmissionModal('general')">
+                        <div class="icon">📚</div>
+                        <div><h2>General Admission</h2><p>LKG to Grade 10</p></div>
+                        <button class="btn">Apply ▶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-center">
+            <div class="login-container login-card" id="loginCard">
+                <div class="login-header">
+                    <div class="crest-sm">✝️</div>
+                    <h3>Staff / Student Login</h3>
+                </div>
+                <div class="login-body">
+                    <div class="error-msg" id="loginError"></div>
+                    <form class="login-form active" id="form-login" onsubmit="return doLogin()">
+                        <div class="form-group"><label>ID</label><input type="text" class="form-input" id="loginId" autocomplete="username" placeholder="Email / Employee ID / Admission No." /></div>
+                        <div class="form-group"><label>Password</label><input type="password" class="form-input" id="loginPassword" autocomplete="current-password" placeholder="Password (students use DOB)" /></div>
+                        <button type="button" onclick="doLogin()" class="btn-block btn-primary">🔐 Sign In</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="login-version">🌐 Web Version 6.1</div>
+    </div>
+
+    <!-- ===== ADMISSION MODAL (Public) ===== -->
+    <div class="admission-modal" id="admissionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="admissionModalTitle">📝 UKG Admission 2026-2027</h2>
+                <button class="close-btn" onclick="closeAdmissionModal()">✕</button>
+            </div>
+            <!-- UKG Form -->
+            <div id="ukgForm" class="step-content active">
+                <form id="ukgAdmissionForm" onsubmit="submitUKGAdmission(event)">
+                    <div class="form-section">
+                        <h3 class="form-section-title">👶 Child Information</h3>
+                        <div class="form-group" style="text-align:center;">
+                            <label>Child's Photo (Passport Size) <span class="required">*</span></label>
+                            <div class="photo-preview" id="ukgPhotoPreview" onclick="document.getElementById('ukgPhotoInput').click()"><i class="fas fa-user-graduate"></i></div>
+                            <input type="file" id="ukgPhotoInput" accept="image/*" style="display:none;" onchange="compressAdmissionPhoto(this, 'ukg')" />
+                            <div class="compressing-indicator" id="ukgCompressing"><div class="spinner"></div><span>Compressing...</span></div>
+                            <input type="hidden" id="ukgPhotoData" value="" />
+                            <div style="font-size:10px;color:var(--text-secondary);">Max 100KB</div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Child's Full Name <span class="required">*</span></label><input type="text" class="form-input" id="ukgChildName" required /></div>
+                            <div class="form-group"><label>Date of Birth <span class="required">*</span></label><input type="date" class="form-input" id="ukgChildDOB" required /></div>
+                            <div class="form-group"><label>Gender <span class="required">*</span></label><select class="form-input" id="ukgChildGender" required><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+                            <div class="form-group"><label>Blood Group</label><select class="form-input" id="ukgBloodGroup"><option value="">Select</option><option>A+</option><option>B+</option><option>O+</option><option>AB+</option></select></div>
+                            <div class="form-group"><label>Religion</label><select class="form-input" id="ukgReligion"><option value="">Select</option></select></div>
+                            <div class="form-group"><label>Place of Birth</label><input type="text" class="form-input" id="ukgPlaceOfBirth" /></div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">👨‍👩‍👧 Parent Information</h3>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Father's Name <span class="required">*</span></label><input type="text" class="form-input" id="ukgFatherName" required /></div>
+                            <div class="form-group"><label>Father's Occupation</label><input type="text" class="form-input" id="ukgFatherOcc" /></div>
+                            <div class="form-group"><label>Father's Phone <span class="required">*</span></label><input type="tel" class="form-input" id="ukgFatherPhone" required /></div>
+                            <div class="form-group"><label>Father's Aadhaar <span class="required">*</span></label>
+                                <div class="file-upload-area" onclick="document.getElementById('ukgFatherAadhaar').click()"><div class="upload-icon">📎</div><div class="upload-text">Click to upload <strong>Father's Aadhaar</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                                <input type="file" id="ukgFatherAadhaar" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'ukgFatherAadhaarFile')" />
+                                <div id="ukgFatherAadhaarFile" class="file-list"></div>
+                            </div>
+                            <div class="form-group"><label>Mother's Name <span class="required">*</span></label><input type="text" class="form-input" id="ukgMotherName" required /></div>
+                            <div class="form-group"><label>Mother's Occupation</label><input type="text" class="form-input" id="ukgMotherOcc" /></div>
+                            <div class="form-group"><label>Mother's Phone <span class="required">*</span></label><input type="tel" class="form-input" id="ukgMotherPhone" required /></div>
+                            <div class="form-group"><label>Mother's Aadhaar <span class="required">*</span></label>
+                                <div class="file-upload-area" onclick="document.getElementById('ukgMotherAadhaar').click()"><div class="upload-icon">📎</div><div class="upload-text">Click to upload <strong>Mother's Aadhaar</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                                <input type="file" id="ukgMotherAadhaar" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'ukgMotherAadhaarFile')" />
+                                <div id="ukgMotherAadhaarFile" class="file-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">📞 Contact & Documents</h3>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Parent Email <span class="required">*</span></label><input type="email" class="form-input" id="ukgEmail" required /></div>
+                            <div class="form-group"><label>Address <span class="required">*</span></label><input type="text" class="form-input" id="ukgAddress" required /></div>
+                            <div class="form-group"><label>City</label><input type="text" class="form-input" id="ukgCity" /></div>
+                            <div class="form-group"><label>State</label><select class="form-input" id="ukgState"><option value="">Select</option><option>Andhra Pradesh</option><option>Karnataka</option><option>Kerala</option><option>Tamil Nadu</option><option>Telangana</option><option>Maharashtra</option></select></div>
+                            <div class="form-group"><label>Pincode</label><input type="text" class="form-input" id="ukgPincode" maxlength="6" /></div>
+                        </div>
+                        <div class="form-group"><label>Birth Certificate <span class="required">*</span></label>
+                            <div class="file-upload-area" onclick="document.getElementById('ukgBirthCert').click()"><div class="upload-icon">📄</div><div class="upload-text">Click to upload <strong>Birth Certificate</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                            <input type="file" id="ukgBirthCert" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'ukgBirthCertFile')" />
+                            <div id="ukgBirthCertFile" class="file-list"></div>
+                        </div>
+                        <div class="form-group"><label>Child's Aadhaar <span class="required">*</span></label>
+                            <div class="file-upload-area" onclick="document.getElementById('ukgChildAadhaar').click()"><div class="upload-icon">🆔</div><div class="upload-text">Click to upload <strong>Child's Aadhaar</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                            <input type="file" id="ukgChildAadhaar" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'ukgChildAadhaarFile')" />
+                            <div id="ukgChildAadhaarFile" class="file-list"></div>
+                        </div>
+                    </div>
+                    <div style="padding:12px;background:var(--primary-light);color:var(--primary);border-radius:8px;margin:12px 0;font-size:12px;font-weight:600;">⚠️ By submitting, you confirm all information is correct and complete.</div>
+                    <div class="form-actions"><button type="submit" class="btn-submit">📤 Submit UKG Application</button><button type="button" class="btn-reset" onclick="resetUKGForm()">🗑️ Reset</button></div>
+                </form>
+            </div>
+            <!-- General Form -->
+            <div id="generalForm" class="step-content">
+                <form id="generalAdmissionForm" onsubmit="submitGeneralAdmission(event)">
+                    <div class="form-section">
+                        <h3 class="form-section-title">👶 Student Information</h3>
+                        <div class="form-group" style="text-align:center;">
+                            <label>Student's Photo (Passport Size) <span class="required">*</span></label>
+                            <div class="photo-preview" id="genPhotoPreview" onclick="document.getElementById('genPhotoInput').click()"><i class="fas fa-user-graduate"></i></div>
+                            <input type="file" id="genPhotoInput" accept="image/*" style="display:none;" onchange="compressAdmissionPhoto(this, 'gen')" />
+                            <div class="compressing-indicator" id="genCompressing"><div class="spinner"></div><span>Compressing...</span></div>
+                            <input type="hidden" id="genPhotoData" value="" />
+                            <div style="font-size:10px;color:var(--text-secondary);">Max 100KB</div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Student's Full Name <span class="required">*</span></label><input type="text" class="form-input" id="genStudentName" required /></div>
+                            <div class="form-group"><label>Date of Birth <span class="required">*</span></label><input type="date" class="form-input" id="genStudentDOB" required /></div>
+                            <div class="form-group"><label>Gender <span class="required">*</span></label><select class="form-input" id="genStudentGender" required><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+                            <div class="form-group"><label>Blood Group</label><select class="form-input" id="genBloodGroup"><option value="">Select</option><option>A+</option><option>B+</option><option>O+</option><option>AB+</option></select></div>
+                            <div class="form-group"><label>Religion</label><select class="form-input" id="genReligion"><option value="">Select</option></select></div>
+                            <div class="form-group"><label>Place of Birth</label><input type="text" class="form-input" id="genPlaceOfBirth" /></div>
+                            <div class="form-group"><label>Applying for Class <span class="required">*</span></label><select class="form-input" id="genApplyingClass" required><option value="">Select Class</option><option>LKG</option><option>UKG</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></select></div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">🏫 Previous School Information</h3>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Previous School Name <span class="required">*</span></label><input type="text" class="form-input" id="genPrevSchool" required /></div>
+                            <div class="form-group"><label>School Address</label><input type="text" class="form-input" id="genPrevSchoolAddr" /></div>
+                            <div class="form-group"><label>School Board <span class="required">*</span></label><select class="form-input" id="genSchoolBoard" required><option value="">Select</option><option>CBSE</option><option>ICSE</option><option>State</option><option>Other</option></select></div>
+                            <div class="form-group"><label>Last Class Studied <span class="required">*</span></label><select class="form-input" id="genLastClass" required><option value="">Select</option><option>LKG</option><option>UKG</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></select></div>
+                            <div class="form-group"><label>Percentage/Grade</label><input type="text" class="form-input" id="genPercentage" /></div>
+                            <div class="form-group"><label>School Leaving Date</label><input type="date" class="form-input" id="genLeavingDate" /></div>
+                            <div class="form-group" style="grid-column: span 2;"><label>Reason for Leaving</label><textarea class="form-input" id="genReason" rows="2"></textarea></div>
+                        </div>
+                        <div class="form-group"><label>Transfer Certificate (TC) <span class="required">*</span></label>
+                            <div class="file-upload-area" onclick="document.getElementById('genTC').click()"><div class="upload-icon">📑</div><div class="upload-text">Click to upload <strong>Transfer Certificate</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                            <input type="file" id="genTC" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'genTCFile')" />
+                            <div id="genTCFile" class="file-list"></div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">👨‍👩‍👧 Parent Information</h3>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Father's Name <span class="required">*</span></label><input type="text" class="form-input" id="genFatherName" required /></div>
+                            <div class="form-group"><label>Father's Occupation</label><input type="text" class="form-input" id="genFatherOcc" /></div>
+                            <div class="form-group"><label>Father's Phone <span class="required">*</span></label><input type="tel" class="form-input" id="genFatherPhone" required /></div>
+                            <div class="form-group"><label>Father's Email</label><input type="email" class="form-input" id="genFatherEmail" /></div>
+                            <div class="form-group"><label>Father's Aadhaar <span class="required">*</span></label>
+                                <div class="file-upload-area" onclick="document.getElementById('genFatherAadhaar').click()"><div class="upload-icon">📎</div><div class="upload-text">Click to upload <strong>Father's Aadhaar</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                                <input type="file" id="genFatherAadhaar" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'genFatherAadhaarFile')" />
+                                <div id="genFatherAadhaarFile" class="file-list"></div>
+                            </div>
+                            <div class="form-group"><label>Mother's Name <span class="required">*</span></label><input type="text" class="form-input" id="genMotherName" required /></div>
+                            <div class="form-group"><label>Mother's Occupation</label><input type="text" class="form-input" id="genMotherOcc" /></div>
+                            <div class="form-group"><label>Mother's Phone <span class="required">*</span></label><input type="tel" class="form-input" id="genMotherPhone" required /></div>
+                            <div class="form-group"><label>Mother's Email</label><input type="email" class="form-input" id="genMotherEmail" /></div>
+                            <div class="form-group"><label>Mother's Aadhaar <span class="required">*</span></label>
+                                <div class="file-upload-area" onclick="document.getElementById('genMotherAadhaar').click()"><div class="upload-icon">📎</div><div class="upload-text">Click to upload <strong>Mother's Aadhaar</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                                <input type="file" id="genMotherAadhaar" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'genMotherAadhaarFile')" />
+                                <div id="genMotherAadhaarFile" class="file-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">📞 Contact & Documents</h3>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Parent Email <span class="required">*</span></label><input type="email" class="form-input" id="genParentEmail" required /></div>
+                            <div class="form-group"><label>Address <span class="required">*</span></label><input type="text" class="form-input" id="genAddress" required /></div>
+                            <div class="form-group"><label>City</label><input type="text" class="form-input" id="genCity" /></div>
+                            <div class="form-group"><label>State</label><select class="form-input" id="genState"><option value="">Select</option><option>Andhra Pradesh</option><option>Karnataka</option><option>Kerala</option><option>Tamil Nadu</option><option>Telangana</option><option>Maharashtra</option></select></div>
+                            <div class="form-group"><label>Pincode</label><input type="text" class="form-input" id="genPincode" maxlength="6" /></div>
+                        </div>
+                        <div class="form-group"><label>Birth Certificate <span class="required">*</span></label>
+                            <div class="file-upload-area" onclick="document.getElementById('genBirthCert').click()"><div class="upload-icon">📄</div><div class="upload-text">Click to upload <strong>Birth Certificate</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                            <input type="file" id="genBirthCert" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'genBirthCertFile')" />
+                            <div id="genBirthCertFile" class="file-list"></div>
+                        </div>
+                        <div class="form-group"><label>Student's Aadhaar <span class="required">*</span></label>
+                            <div class="file-upload-area" onclick="document.getElementById('genStudentAadhaar').click()"><div class="upload-icon">🆔</div><div class="upload-text">Click to upload <strong>Student's Aadhaar</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                            <input type="file" id="genStudentAadhaar" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'genStudentAadhaarFile')" />
+                            <div id="genStudentAadhaarFile" class="file-list"></div>
+                        </div>
+                        <div class="form-group"><label>Last Marksheet <span class="required">*</span></label>
+                            <div class="file-upload-area" onclick="document.getElementById('genMarksheet').click()"><div class="upload-icon">📊</div><div class="upload-text">Click to upload <strong>Last Marksheet</strong></div><div class="upload-subtext">PDF, JPG, PNG (Max 2MB)</div></div>
+                            <input type="file" id="genMarksheet" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadFile(this, 'genMarksheetFile')" />
+                            <div id="genMarksheetFile" class="file-list"></div>
+                        </div>
+                    </div>
+                    <div style="padding:12px;background:var(--primary-light);color:var(--primary);border-radius:8px;margin:12px 0;font-size:12px;font-weight:600;">⚠️ By submitting, you confirm all information is correct and complete.</div>
+                    <div class="form-actions"><button type="submit" class="btn-submit">📤 Submit General Admission Application</button><button type="button" class="btn-reset" onclick="resetGeneralForm()">🗑️ Reset</button></div>
+                </form>
+            </div>
+            <div id="admissionSuccess" style="display:none;">
+                <div class="success-message"><div class="success-icon">✅</div><h2>Application Submitted!</h2><p>Your application has been received successfully.</p><div class="app-number" id="appNumberDisplay">UKG-2024-0001</div><p style="font-size:13px;color:var(--text-secondary);">Please save this application number for future reference.</p><p style="font-size:12px;color:var(--text-secondary);margin-top:12px;">You will receive a confirmation email shortly.</p><button class="btn btn-primary" style="margin-top:16px;" onclick="closeAdmissionModal()">Done</button></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/vendor/apexcharts.min.js"></script>
+    <script src="assets/vendor/qrcode.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

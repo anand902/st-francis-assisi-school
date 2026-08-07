@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard - St. Francis School</title>
+    <meta name="theme-color" content="#2563EB" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="icon-192.png" />
+    <link href="assets/vendor/googlefonts/fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/vendor/fontawesome/all.min.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===== APP CONTAINER ===== -->
+<div class="app-container" id="appContainer">
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">✝️</div>
+            <div class="sidebar-brand">St. Francis<small>OF ASSISI SCHOOL</small></div>
+            <button class="sidebar-toggle-btn" onclick="toggleSidebar()">☰</button>
+        </div>
+        <nav class="sidebar-nav" id="sidebarNav"></nav>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar" id="sidebarAvatar">A</div>
+                <div>
+                    <div class="user-name" id="sidebarName">Admin</div>
+                    <div class="user-role" id="sidebarRole">Principal</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-content" id="mainContent">
+        <header class="header">
+            <div class="header-left">
+                <button class="hamburger-btn" onclick="toggleMobileSidebar()"><i class="fas fa-bars"></i></button>
+                <h1 class="page-title" id="pageTitle">Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <div class="theme-toggle" onclick="toggleTheme()"></div>
+                <span class="server-status-row" id="headerServerStatusRow" style="display:none;align-items:center;gap:6px;margin-right:4px;">
+                    <span class="status-light" id="headerServerStatusLight"></span>
+                    <span id="headerServerStatusText" style="font-size:12px;color:var(--text-secondary);white-space:nowrap;"></span>
+                </span>
+                <select class="header-school-select" id="headerSchoolSelect" onchange="switchSchool(this.value)" style="display:none;" title="Switch school"></select>
+                <button class="logout-btn" onclick="doLogout()" title="Logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
+            </div>
+        </header>
+        <div class="content-area">
+
+            <!-- ===== DASHBOARD ===== -->
+            <div class="page active" id="page-dashboard">
+                <div class="form-card" id="dashSearchCard">
+                    <h3 class="form-section-title">🔍 Search Student / Teacher</h3>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Type a name, admission no. or employee ID to view their details.</p>
+                    <input type="text" class="form-input" id="dashSearchInput" placeholder="Search student or teacher name..." onkeyup="dashSearch()" style="width:100%;" autocomplete="off" />
+                    <div id="dashSearchResults" style="margin-top:12px;max-height:320px;overflow-y:auto;"></div>
+                    <div id="dashPersonDetails" style="margin-top:16px;"></div>
+                </div>
+                <div class="charts-grid">
+                    <div class="kpi-card-new"><div class="kpi-card-title">👨‍🎓 Students Overview</div><div class="kpi-three-donuts" id="studentsDonuts"></div></div>
+                    <div class="kpi-card-new"><div class="kpi-card-title">👨‍🏫 Teachers Overview</div><div class="kpi-three-donuts" id="teachersDonuts"></div></div>
+                    <div class="kpi-card-new"><div class="kpi-card-title">💰 Financial Overview</div><div class="kpi-three-donuts" id="feeDonuts"></div></div>
+                    <div class="kpi-card-new"><div class="kpi-card-title">📊 Attendance Overview</div><div class="kpi-three-donuts" id="attendanceDonuts"></div></div>
+                </div>
+                <div class="notice-board" id="noticeBoard">
+                    <h3>📢 Notice Board</h3>
+                    <div id="noticeList"><p style="color:var(--text-secondary);font-size:12px;">No notices yet</p></div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-card"><h3>📊 Gender Distribution</h3><div id="genderDonut"></div></div>
+                    <div class="chart-card"><h3>🙏 Religion Distribution</h3><div id="religionChart"></div></div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-card"><h3>📈 Class Strength</h3><div id="classStrengthChart"></div></div>
+                </div>
+            </div>
+
+            <!-- ===== STUDENTS ===== -->
+            <div class="page" id="page-students">
+                <h2>👨‍🎓 Students</h2>
+                <div class="table-card">
+                    <div class="table-header">
+                        <input type="text" class="form-input" placeholder="🔍 Search..." onkeyup="loadStudents()" id="studentSearch" style="width:250px;" />
+                    </div>
+                    <table>
+                        <thead><tr><th>Photo</th><th>Adm No.</th><th>Name</th><th>Gender</th><th>Religion</th><th>Class</th><th>Section</th></tr></thead>
+                        <tbody id="studentsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== TEACHERS ===== -->
+            <div class="page" id="page-teachers">
+                <h2>👨‍🏫 Teachers</h2>
+                <button class="btn btn-primary btn-sm" onclick="showTeacherForm()" style="margin:14px 0;">➕ Add Teacher</button>
+                <div class="form-card" id="teacherFormCard" style="display:none;">
+                    <h2 id="teacherFormTitle">📝 Add Teacher</h2>
+                    <div class="form-section">
+                        <h3 class="form-section-title">📸 Photo (Max 100KB)</h3>
+                        <div class="photo-upload-area">
+                            <div class="photo-preview" id="tchPhotoPreview" onclick="document.getElementById('tchPhotoInput').click()"><i class="fas fa-chalkboard-teacher"></i></div>
+                            <div class="photo-buttons">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('tchPhotoInput').click()">📷</button>
+                                <button type="button" class="btn btn-danger btn-sm" id="tchRemovePhotoBtn" style="display:none;" onclick="removePhoto('tch')">🗑️</button>
+                            </div>
+                            <input type="file" id="tchPhotoInput" accept="image/*" style="display:none;" onchange="compressAndPreview(this, 'tch')" />
+                            <div class="compressing-indicator" id="tchCompressingIndicator"><div class="spinner"></div><span>Compressing image...</span></div>
+                            <div class="photo-info" id="tchPhotoInfo">Max 100KB</div>
+                        </div>
+                        <input type="hidden" id="tchPhotoData" value="" />
+                    </div>
+                    <form id="teacherForm" onsubmit="return saveTeacher()">
+                        <input type="hidden" id="tchId" value="" />
+                        <div class="form-section">
+                            <h3 class="form-section-title">📋 Basic Info</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Name *</label><input type="text" class="form-input" id="tchName" required /></div>
+                                <div class="form-group"><label>Gender</label><select class="form-input" id="tchGender"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+                                <div class="form-group"><label>Date of Birth</label><input type="date" class="form-input" id="tchDob" /></div>
+                                <div class="form-group"><label>Father's Name</label><input type="text" class="form-input" id="tchFatherName" /></div>
+                                <div class="form-group"><label>Mobile No.</label><input type="tel" class="form-input" id="tchPhone" /></div>
+                                <div class="form-group"><label>Email</label><input type="email" class="form-input" id="tchEmail" /></div>
+                                <div class="form-group"><label>Designation</label><input type="text" class="form-input" id="tchDesignation" placeholder="e.g. Senior Teacher, Coordinator" /></div>
+                                <div class="form-group"><label>Subject *</label><input type="text" class="form-input" id="tchSubject" required /></div>
+                                <div class="form-group"><label>Qualification</label><input type="text" class="form-input" id="tchQualification" /></div>
+                                <div class="form-group"><label>Experience (Yrs)</label><input type="number" class="form-input" id="tchExperience" value="0" min="0" /></div>
+                                <div class="form-group" style="grid-column:1/-1;"><label>Address</label><textarea class="form-input" id="tchAddress" rows="2" placeholder="House, Street, City, Pincode"></textarea></div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">📚 Subject Assignment (Every Class)</h3>
+                            <div id="teacherSubjectGrid"></div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">🏫 Class Teacher</h3>
+                            <div class="form-group">
+                                <label>Assign as Class Teacher</label>
+                                <select class="form-input" id="tchClassTeacher"><option value="">Not Assigned</option></select>
+                            </div>
+                        </div>
+                        <div style="margin:12px 0;"><strong>Employee ID:</strong> <span id="tchEmpIdPreview">TCH-2024-004</span></div>
+                        <button type="submit" class="btn btn-primary">💾 Save Teacher</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('teacherFormCard').style.display='none'">Cancel</button>
+                    </form>
+                </div>
+                <div class="table-card">
+                    <table>
+                        <thead><tr><th>Photo</th><th>Emp ID</th><th>Name</th><th>Subject</th><th>Class Teacher</th><th>Actions</th></tr></thead>
+                        <tbody id="teachersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== TEACHER ATTENDANCE ===== -->
+            <div class="page" id="page-teacher-attendance">
+                <div class="form-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+                        <h2>👨‍🏫 Teacher Attendance</h2>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <input type="date" class="form-input" id="teacherAttDate" style="width:160px;" onchange="loadTeacherAttendance()" />
+                            <span id="attendanceLockStatus"></span>
+                        </div>
+                    </div>
+                    <div id="teacherAttendanceSheet"></div>
+                </div>
+            </div>
+
+            <!-- ===== STUDENT ATTENDANCE ===== -->
+            <div class="page" id="page-student-attendance">
+                <div class="form-card">
+                    <h2>📅 Student Attendance</h2>
+                    <div class="form-grid" style="margin-bottom:16px;">
+                        <div class="form-group"><label>Date</label><input type="date" class="form-input" id="attDate" /></div>
+                        <div class="form-group"><label>Class</label><select class="form-input" id="attClass" onchange="loadStudentAttendance()"><option value="">Select</option><option>LKG</option><option>UKG</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></select></div>
+                        <div class="form-group"><label>Section</label><select class="form-input" id="attSection" onchange="loadStudentAttendance()"><option value="">Select</option><option>A</option><option>B</option></select></div>
+                    </div>
+                    <div id="attendanceSheet"></div>
+                </div>
+            </div>
+
+            <!-- ===== FEE STRUCTURE ===== -->
+            <div class="page" id="page-fee-structure">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">💰 Fee Structure Settings 2026-2027 <span class="annual-badge">PRINCIPAL ONLY</span></h2>
+                    <p style="color:var(--text-secondary);margin-bottom:20px;font-size:13px;">Each class has its own fee amounts. Set fees for all 12 classes individually.</p>
+                    <div class="form-section">
+                        <h3 class="form-section-title">📋 New Admission Fee Structure (All 12 Classes)</h3>
+                        <div class="class-fee-table"><table id="settingsAdmissionFeeTable"><thead><tr><th>Fee Component</th><th>LKG</th><th>UKG</th><th>Gr1</th><th>Gr2</th><th>Gr3</th><th>Gr4</th><th>Gr5</th><th>Gr6</th><th>Gr7</th><th>Gr8</th><th>Gr9</th><th>Gr10</th></tr></thead><tbody></tbody></table></div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">🔄 Re-Admission Fee Structure 2026-2027 (All 12 Classes)</h3>
+                        <div class="class-fee-table"><table id="settingsReAdmissionFeeTable"><thead><tr><th>Fee Component</th><th>LKG</th><th>UKG</th><th>Gr1</th><th>Gr2</th><th>Gr3</th><th>Gr4</th><th>Gr5</th><th>Gr6</th><th>Gr7</th><th>Gr8</th><th>Gr9</th><th>Gr10</th></tr></thead><tbody></tbody></table></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveAllFeeSettings()" style="margin-top:16px;">💾 Save All Fee Settings</button>
+                </div>
+            </div>
+
+            <!-- ===== FEE COLLECTION ===== -->
+            <div class="page" id="page-fee-collection">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">💰 Fee Collection</h2>
+                    <div class="form-section">
+                        <h3 class="form-section-title">🔍 Search Student</h3>
+                        <div class="form-group">
+                            <label>Type Student Name or Admission No.</label>
+                            <input type="text" class="form-input" id="feeSearchStudent" placeholder="Type name or admission number..." onkeyup="searchStudentForFee()" style="font-size:14px;" />
+                        </div>
+                        <div id="feeStudentSearchResults" style="max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                    <div id="feeStudentProfile" style="display:none;">
+                        <div class="form-section"><h3 class="form-section-title">👤 Student Profile</h3><div id="feeStudentProfileContent"></div></div>
+                        <div class="form-section"><h3 class="form-section-title">📋 Payment History</h3><div id="feePaymentHistory"></div></div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">💳 Collect Payment</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Fee Month</label><select class="form-input" id="feeMonth"><option value="">Select Month</option><option>April 2026</option><option>May 2026</option><option>June 2026</option><option>July 2026</option><option>August 2026</option><option>September 2026</option><option>October 2026</option><option>November 2026</option><option>December 2026</option><option>January 2027</option><option>February 2027</option><option>March 2027</option></select></div>
+                                <div class="form-group"><label>Fee Category</label><select class="form-input" id="feeCategory"><option>Tuition Fee</option><option>Transport Fee</option><option>Exam Fee</option><option>Library Fee</option><option>Other</option></select></div>
+                                <div class="form-group"><label>Amount (₹) *</label><input type="number" class="form-input" id="feeAmount" required min="1" /></div>
+                                <div class="form-group"><label>Payment Method</label><select class="form-input" id="feeMethod"><option>Cash</option><option>UPI</option><option>Card</option><option>Cheque</option></select></div>
+                                <div class="form-group"><label>Payment Date</label><input type="date" class="form-input" id="feeDate" /></div>
+                                <div class="form-group"><label>Transaction ID</label><input type="text" class="form-input" id="feeTransactionId" placeholder="UPI Ref / Cheque No." /></div>
+                            </div>
+                            <input type="hidden" id="feeSelectedStudentId" value="" />
+                            <button class="btn btn-purple" onclick="collectFeeForStudent()" style="margin-top:12px;">💰 Collect Payment & Print Receipt</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="feeReceiptContainer"></div>
+            </div>
+
+            <!-- ===== FEE RECORDS ===== -->
+            <div class="page" id="page-fee-records">
+                <h2>📋 Payment History</h2>
+                <div class="table-card">
+                    <table><thead><tr><th>Receipt</th><th>Student</th><th>Class</th><th>Month</th><th>Amount</th><th>Date</th></tr></thead><tbody id="feeRecordsTableBody"></tbody></table>
+                </div>
+            </div>
+
+            <!-- ===== ADMISSIONS ===== -->
+            <div class="page" id="page-admissions">
+                <h2>📋 Admissions Management</h2>
+                <div class="form-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+                        <h3 style="margin:0;">Applications</h3>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-outline btn-sm" onclick="loadAdmissions('ukg')">🎒 UKG</button>
+                            <button class="btn btn-outline btn-sm" onclick="loadAdmissions('general')">📚 General</button>
+                            <button class="btn btn-primary btn-sm" onclick="loadAdmissions('all')">📋 All</button>
+                        </div>
+                    </div>
+                    <div class="stats-grid" id="admissionStats">
+                        <div class="stat-card"><div class="stat-number" id="admTotal">0</div><div class="stat-label">Total</div></div>
+                        <div class="stat-card"><div class="stat-number" id="admPending" style="color:#F59E0B;">0</div><div class="stat-label">⏳ Pending</div></div>
+                        <div class="stat-card"><div class="stat-number" id="admShortlisted" style="color:#3B82F6;">0</div><div class="stat-label">📋 Shortlisted</div></div>
+                        <div class="stat-card"><div class="stat-number" id="admAccepted" style="color:#22C55E;">0</div><div class="stat-label">✅ Accepted</div></div>
+                    </div>
+                    <div id="admissionsList"></div>
+                </div>
+            </div>
+
+            <!-- ===== QR CODES ===== -->
+            <div class="page" id="page-qrcodes">
+                <h2>📱 QR Codes</h2>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:16px;">
+                    <div class="form-card" style="text-align:center;">
+                        <h3>🎒 Student QR</h3>
+                        <select class="form-input" id="qrStudentSelect" onchange="generateQR('student')"><option value="">Select</option></select>
+                        <div id="studentQRDisplay" style="margin-top:10px;min-height:180px;display:flex;align-items:center;justify-content:center;"></div>
+                    </div>
+                    <div class="form-card" style="text-align:center;">
+                        <h3>👨‍🏫 Teacher QR</h3>
+                        <select class="form-input" id="qrTeacherSelect" onchange="generateQR('teacher')"><option value="">Select</option></select>
+                        <div id="teacherQRDisplay" style="margin-top:10px;min-height:180px;display:flex;align-items:center;justify-content:center;"></div>
+                        <button type="button" class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="downloadQR('teacher')">⬇️ Download</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== NOTICES ===== -->
+            <div class="page" id="page-notices">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">📢 Create Notice</h2>
+                    <form id="noticeForm" onsubmit="return createNotice()">
+                        <div class="form-group"><label>Title *</label><input type="text" class="form-input" id="noticeTitle" required /></div>
+                        <div class="form-group"><label>Message *</label><textarea class="form-input" id="noticeMessage" rows="4" required></textarea></div>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Type</label><select class="form-input" id="noticeType"><option>General</option><option>Important</option><option>Urgent</option></select></div>
+                            <div class="form-group"><label>For</label><select class="form-input" id="noticeFor"><option>All</option><option>Teachers Only</option><option>Students Only</option><option>Accountant Only</option></select></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="margin-top:12px;">📢 Publish Notice</button>
+                    </form>
+                </div>
+                <div class="table-card">
+                    <div class="table-header"><h3>📋 All Notices</h3></div>
+                    <table><thead><tr><th>Title</th><th>Type</th><th>For</th><th>Date</th><th>Actions</th></tr></thead><tbody id="noticesTableBody"></tbody></table>
+                </div>
+            </div>
+
+            <!-- ===== MARK SETTINGS ===== -->
+            <div class="page" id="page-mark-settings">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">⚙️ Mark Sheet Settings <span class="annual-badge">PRINCIPAL ONLY</span></h2>
+                    <div class="mark-config">
+                        <div><label>1st Unit Test - Full Marks</label><input type="number" class="form-input" id="ut1Full" value="25" min="1" onchange="saveMarkSettings()" /></div>
+                        <div><label>1st Unit Test - Pass Marks</label><input type="number" class="form-input" id="ut1Pass" value="9" min="0" onchange="saveMarkSettings()" /></div>
+                        <div><label>2nd Unit Test - Full Marks</label><input type="number" class="form-input" id="ut2Full" value="25" min="1" onchange="saveMarkSettings()" /></div>
+                        <div><label>2nd Unit Test - Pass Marks</label><input type="number" class="form-input" id="ut2Pass" value="9" min="0" onchange="saveMarkSettings()" /></div>
+                        <div><label>Half Yearly - Full Marks</label><input type="number" class="form-input" id="hyFull" value="100" min="1" onchange="saveMarkSettings()" /></div>
+                        <div><label>Half Yearly - Pass Marks</label><input type="number" class="form-input" id="hyPass" value="25" min="0" onchange="saveMarkSettings()" /></div>
+                        <div><label>📌 Annual Exam - Full Marks</label><input type="number" class="form-input" id="anFull" value="100" min="1" onchange="saveMarkSettings()" /></div>
+                        <div><label>📌 Annual Exam - Pass Marks</label><input type="number" class="form-input" id="anPass" value="33" min="0" onchange="saveMarkSettings()" /></div>
+                    </div>
+                    <div class="form-section" style="margin-top:20px;">
+                        <h3 class="form-section-title">🔐 Teacher Access Permissions</h3>
+                        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">Enable/disable teacher access to enter marks for each exam.</p>
+                        <div id="markPermissionsContainer"></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveMarkSettings()" style="margin-top:12px;">💾 Save All Settings</button>
+                </div>
+            </div>
+
+            <!-- ===== SUBJECTS ===== -->
+            <div class="page" id="page-subjects">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">📚 Subjects <span class="annual-badge">PRINCIPAL ONLY</span></h2>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;">Add or remove subjects. They are used in mark sheets and teacher subject assignments.</p>
+                    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+                        <input type="text" class="form-input" id="newSubjectName" placeholder="Enter subject name (e.g. Sanskrit)" style="max-width:320px;" onkeydown="if(event.key==='Enter')addSubject()" />
+                        <button class="btn btn-primary" onclick="addSubject()">➕ Add Subject</button>
+                    </div>
+                    <div id="subjectListContainer"></div>
+                </div>
+            </div>
+
+            <!-- ===== MARK ENTRY ===== -->
+            <div class="page" id="page-marksheet">
+                <div class="form-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+                        <h2>📝 Mark Sheet Entry</h2>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <span class="mark-auto-save"><i class="fas fa-save"></i> Auto-save ON</span>
+                            <span id="markEntryStatus" style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:20px;"></span>
+                        </div>
+                    </div>
+                    <div class="form-grid" style="margin-bottom:16px;">
+                        <div class="form-group"><label>Exam Type</label><select class="form-input" id="examType" onchange="loadMarkSheet()"><option value="">Select</option><option value="ut1">1st Unit Test</option><option value="ut2">2nd Unit Test</option><option value="hy">Half Yearly</option><option value="an">📌 Annual Exam</option></select></div>
+                        <div class="form-group"><label>Class</label><select class="form-input" id="markClass" onchange="loadMarkSheet()"><option value="">Select</option><option>LKG</option><option>UKG</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></select></div>
+                        <div class="form-group"><label>Section</label><select class="form-input" id="markSection" onchange="loadMarkSheet()"><option value="">Select</option><option>A</option><option>B</option></select></div>
+                    </div>
+                    <div id="markSheetContainer"></div>
+                </div>
+            </div>
+
+            <!-- ===== MARK VIEW ===== -->
+            <div class="page" id="page-mark-view">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">📊 View Mark Sheet</h2>
+                    <div class="form-grid" style="margin-bottom:16px;">
+                        <div class="form-group"><label>Exam Type</label><select class="form-input" id="viewExamType" onchange="loadMarkSheetView()"><option value="">Select</option><option value="ut1">1st Unit Test</option><option value="ut2">2nd Unit Test</option><option value="hy">Half Yearly</option><option value="an">📌 Annual Exam</option></select></div>
+                        <div class="form-group"><label>Class</label><select class="form-input" id="viewMarkClass" onchange="loadMarkSheetView()"><option value="">Select</option><option>LKG</option><option>UKG</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></select></div>
+                        <div class="form-group"><label>Section</label><select class="form-input" id="viewMarkSection" onchange="loadMarkSheetView()"><option value="">Select</option><option>A</option><option>B</option></select></div>
+                    </div>
+                    <div id="markSheetViewContainer"></div>
+                </div>
+            </div>
+
+            <!-- ===== STUDENT MARKS ===== -->
+            <div class="page" id="page-student-marks">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">📊 My Mark Sheet</h2>
+                    <div id="studentMarksContainer"></div>
+                </div>
+            </div>
+
+            <!-- ===== STUDENT SELF ===== -->
+            <div class="page" id="page-student-self">
+                <h2>🎒 My Profile</h2>
+                <div class="form-card" id="studentSelfView"></div>
+            </div>
+
+            <!-- ===== TEACHER HOMEWORK ===== -->
+            <div class="page" id="page-teacher-homework">
+                <div class="form-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+                        <h2>📚 My Homework</h2>
+                        <div><button class="btn btn-primary btn-sm" onclick="showCreateHomework()">➕ New Homework</button><button class="btn btn-outline btn-sm" onclick="loadTeacherHomework()">🔄 Refresh</button></div>
+                    </div>
+                    <div class="stats-grid" id="teacherHomeworkStats">
+                        <div class="stat-card"><div class="stat-number" id="thTotal">0</div><div class="stat-label">📝 Total</div></div>
+                        <div class="stat-card"><div class="stat-number" id="thActive" style="color:#22C55E;">0</div><div class="stat-label">🟢 Active</div></div>
+                        <div class="stat-card"><div class="stat-number" id="thCompleted" style="color:#3B82F6;">0</div><div class="stat-label">✅ Completed</div></div>
+                        <div class="stat-card"><div class="stat-number" id="thViews" style="color:#8B5CF6;">0</div><div class="stat-label">👁️ Total Views</div></div>
+                    </div>
+                    <div id="teacherHomeworkList"></div>
+                </div>
+            </div>
+
+            <!-- ===== STUDENT HOMEWORK ===== -->
+            <div class="page" id="page-student-homework">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">📚 My Homework</h2>
+                    <div class="stats-grid" id="studentHomeworkStats">
+                        <div class="stat-card"><div class="stat-number" id="shTotal">0</div><div class="stat-label">📝 Total</div></div>
+                        <div class="stat-card"><div class="stat-number" id="shActive" style="color:#22C55E;">0</div><div class="stat-label">🟢 Active</div></div>
+                        <div class="stat-card"><div class="stat-number" id="shCompleted" style="color:#3B82F6;">0</div><div class="stat-label">✅ Completed</div></div>
+                        <div class="stat-card"><div class="stat-number" id="shOverdue" style="color:#EF4444;">0</div><div class="stat-label">🔴 Overdue</div></div>
+                    </div>
+                    <div id="studentHomeworkList"></div>
+                </div>
+            </div>
+
+            <!-- ===== PRINCIPAL PERFORMANCE ===== -->
+            <div class="page" id="page-principal-performance">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">👑 Teacher Performance Dashboard <span class="annual-badge">PRINCIPAL ONLY</span></h2>
+                    <div class="stats-grid" id="principalPerformanceStats">
+                        <div class="stat-card"><div class="stat-number" id="ppTotalTeachers">0</div><div class="stat-label">👨‍🏫 Active Teachers</div></div>
+                        <div class="stat-card"><div class="stat-number" id="ppTotalHomework">0</div><div class="stat-label">📝 Total Homework</div></div>
+                        <div class="stat-card"><div class="stat-number" id="ppTotalViews">0</div><div class="stat-label">👁️ Total Views</div></div>
+                        <div class="stat-card"><div class="stat-number" id="ppAvgEngagement">0%</div><div class="stat-label">📊 Avg Engagement</div></div>
+                    </div>
+                    <div class="form-section"><h3 class="form-section-title">🏆 Teacher Performance Ranking</h3><div id="teacherPerformanceRanking"></div></div>
+                    <div class="form-section"><h3 class="form-section-title">📊 Subject-wise Performance</h3><div id="subjectPerformanceChart" style="height:300px;"></div></div>
+                    <div class="form-section"><h3 class="form-section-title">📈 Performance Trends</h3><div id="performanceTrendChart" style="height:250px;"></div></div>
+                    <div class="form-section"><h3 class="form-section-title">⚠️ Low Performance Alerts</h3><div id="lowPerformanceAlerts"></div></div>
+                    <button class="btn btn-primary btn-sm" onclick="exportPerformanceReport()">📥 Export Report</button>
+                </div>
+            </div>
+
+            <!-- ===== DUPLICATE DATA CHECK ===== -->
+            <div class="page" id="page-duplicates">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">🔍 Duplicate Data Check <span class="annual-badge">PRINCIPAL ONLY</span></h2>
+                    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Scan the school database for duplicate records across students, teachers, fees, homework, notices and admission applications. The first entry in each duplicate group is kept.</p>
+                    <button class="btn btn-primary btn-sm" onclick="loadDuplicates()">🔄 Re-scan Data</button>
+                    <div id="duplicateResults" style="margin-top:16px;"></div>
+                </div>
+            </div>
+
+            <!-- ===== SCHOOL SETTINGS ===== -->
+            <div class="page" id="page-school-settings">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">⚙️ School Settings <span class="annual-badge">PRINCIPAL ONLY</span></h2>
+                    <form id="schoolSettingsForm" onsubmit="return saveSchoolSettings()">
+                        <div class="form-section">
+                            <h3 class="form-section-title">🏫 School Identity</h3>
+                            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:16px;">
+                                <div class="settings-logo-preview" id="settingsCrestPreview">✝️</div>
+                                <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+                                    <button type="button" class="btn btn-primary" onclick="document.getElementById('setLogoInput').click()"><i class="fas fa-upload"></i> Choose Logo</button>
+                                    <button type="button" class="btn btn-danger btn-sm" id="setLogoRemoveBtn" style="display:none;" onclick="removeSchoolLogo()"><i class="fas fa-trash"></i> Remove</button>
+                                </div>
+                                <input type="file" id="setLogoInput" accept="image/*" style="display:none;" onchange="compressSchoolLogo(this)" />
+                                <div class="compressing-indicator" id="setLogoCompressing"><div class="spinner"></div><span>Compressing...</span></div>
+                                <input type="hidden" id="setLogoData" value="" />
+                                <div id="logoStatusText" style="font-size:12px;color:var(--text-secondary);"></div>
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-group"><label>School Name *</label><input type="text" class="form-input" id="setSchoolName" required /></div>
+                                <div class="form-group"><label>Tagline</label><input type="text" class="form-input" id="setTagline" /></div>
+                                <div class="form-group"><label>Academic Year</label><input type="text" class="form-input" id="setAcademicYear" /></div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">📱 Mobile App Icon</h3>
+                            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Upload an icon for the mobile app. Recommended: a square image, 512x512px or larger.</p>
+                            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+                                <div id="appIconPreview" style="width:96px;height:96px;border-radius:22px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--primary);border:3px solid var(--warning);background-size:cover;background-position:center;overflow:hidden;">📱</div>
+                                <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+                                    <button type="button" class="btn btn-primary" onclick="document.getElementById('setAppIconInput').click()"><i class="fas fa-upload"></i> Choose App Icon</button>
+                                    <button type="button" class="btn btn-danger btn-sm" id="setAppIconRemoveBtn" style="display:none;" onclick="removeAppIcon()"><i class="fas fa-trash"></i> Remove</button>
+                                </div>
+                                <input type="file" id="setAppIconInput" accept="image/*" style="display:none;" onchange="compressAppIcon(this)" />
+                                <div class="compressing-indicator" id="setAppIconCompressing"><div class="spinner"></div><span>Compressing...</span></div>
+                                <input type="hidden" id="setAppIconData" value="" />
+                                <div id="appIconStatusText" style="font-size:12px;color:var(--text-secondary);"></div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">🖼️ Login Page Background</h3>
+                            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Upload a background image for the login page. Recommended size: 1920x1080px.</p>
+                            <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button type="button" class="btn btn-primary" onclick="document.getElementById('setBgInput').click()"><i class="fas fa-image"></i> Choose Background</button>
+                                    <button type="button" class="btn btn-danger btn-sm" id="setBgRemoveBtn" style="display:none;" onclick="removeLoginBackground()"><i class="fas fa-trash"></i> Remove</button>
+                                </div>
+                                <input type="file" id="setBgInput" accept="image/*" style="display:none;" onchange="compressLoginBg(this)" />
+                                <div class="compressing-indicator" id="setBgCompressing"><div class="spinner"></div><span>Compressing...</span></div>
+                                <input type="hidden" id="setBgData" value="" />
+                                <div id="bgStatusText" style="font-size:12px;color:var(--text-secondary);"></div>
+                            </div>
+                            <div style="margin-top:12px;border:2px dashed var(--border);border-radius:var(--radius);overflow:hidden;height:120px;background-size:cover;background-position:center;position:relative;" id="bgPreviewContainer">
+                                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:13px;" id="bgPreviewPlaceholder"><i class="fas fa-image" style="font-size:24px;margin-right:8px;"></i> Background preview</div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">📞 Contact Information</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Address</label><textarea class="form-input" id="setAddress" rows="2"></textarea></div>
+                                <div class="form-group"><label>Phone</label><input type="text" class="form-input" id="setPhone" /></div>
+                                <div class="form-group"><label>Email</label><input type="email" class="form-input" id="setEmail" /></div>
+                                <div class="form-group"><label>Principal Name</label><input type="text" class="form-input" id="setPrincipalName" /></div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">🔐 Principal Login (ID & Password)</h3>
+                            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Change the ID and password used by the Principal to sign in.</p>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Current ID (Email)</label><input type="email" class="form-input" id="setPrincipalCurrentId" readonly style="background:var(--bg);" /></div>
+                                <div class="form-group"><label>New ID (Email) *</label><input type="email" class="form-input" id="setPrincipalNewId" placeholder="principal@stfrancis.edu" /></div>
+                                <div class="form-group"><label>New Password *</label><input type="text" class="form-input" id="setPrincipalNewPassword" placeholder="Min 6 characters" autocomplete="new-password" /></div>
+                                <div class="form-group"><label>Confirm New Password *</label><input type="password" class="form-input" id="setPrincipalConfirmPassword" autocomplete="new-password" /></div>
+                            </div>
+                            <button type="button" class="btn btn-gold" onclick="savePrincipalCredentials()"><i class="fas fa-key"></i> Update ID & Password</button>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">🙏 Religions List</h3>
+                            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">These religions appear as options in the admission forms and the dashboard Religion chart. Enter one religion per line. "Other" is always available automatically.</p>
+                            <div class="form-group"><textarea class="form-input" id="setReligions" rows="6" placeholder="Christian&#10;Hindu&#10;Muslim&#10;Sikh&#10;Buddhist&#10;Jain"></textarea></div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">🎯 Mission / Vision</h3>
+                            <div class="form-group"><textarea class="form-input" id="setMission" rows="3"></textarea></div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">📢 Public Notification</h3>
+                            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">This notification will appear on the login page for all visitors.</p>
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;"><input type="checkbox" id="setNotificationEnabled" /> Enable Notification</label>
+                            </div>
+                            <div class="form-group"><label>Notification Message</label><textarea class="form-input" id="setNotificationMessage" rows="2" placeholder="e.g., Admissions for 2026–27 are now open!"></textarea></div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">📲 Download School App</h3>
+                            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Download this school's mobile web app or desktop app. The downloaded app will carry this school's name, logo and settings.</p>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                                <button type="button" class="btn btn-primary" onclick="downloadWebApp()"><i class="fas fa-mobile-alt"></i> Download Web App</button>
+                                <button type="button" class="btn btn-gold desktop-app-btn" onclick="downloadDesktopApp()"><i class="fas fa-desktop"></i> Download Desktop App</button>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">👁️ Preview</h3>
+                            <div class="settings-preview-card">
+                                <div class="preview-crest" id="previewCrest">✝️</div>
+                                <div class="preview-logo-img" id="previewLogoImg" style="display:none;width:80px;height:80px;border-radius:50%;margin:0 auto 8px;background-size:cover;background-position:center;"></div>
+                                <div class="preview-name" id="previewName">St. Francis of Assisi School</div>
+                                <div class="preview-tagline" id="previewTagline">"Pax et Bonum" - Peace and Goodness</div>
+                                <div class="preview-meta">
+                                    <span id="previewYear">📅 2026-2027</span>
+                                    <span id="previewAddress">📍 123 Education Lane</span>
+                                    <span id="previewPhone">📞 +91-9876543210</span>
+                                    <span id="previewEmail">✉️ info@stfrancis.edu</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+                            <button type="submit" class="btn btn-primary">💾 Save Settings</button>
+                            <button type="button" class="btn btn-outline" onclick="loadSchoolSettings()">🔄 Reload Settings</button>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="resetToDefaultSettings()">🗑️ Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div><!-- /content-area -->
+    </div><!-- /main-content -->
+</div><!-- /app-container -->
+
+<!-- ===== SCRIPTS ===== -->
+<script src="assets/vendor/apexcharts.min.js"></script>
+<script src="assets/vendor/qrcode.min.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

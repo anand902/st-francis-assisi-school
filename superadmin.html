@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super Admin - St. Francis School</title>
+    <meta name="theme-color" content="#2563EB" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="icon-192.png" />
+    <link href="assets/vendor/googlefonts/fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/vendor/fontawesome/all.min.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===== APP CONTAINER ===== -->
+<div class="app-container" id="appContainer">
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">✝️</div>
+            <div class="sidebar-brand">St. Francis<small>OF ASSISI SCHOOL</small></div>
+            <button class="sidebar-toggle-btn" onclick="toggleSidebar()">☰</button>
+        </div>
+        <nav class="sidebar-nav" id="sidebarNav"></nav>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar" id="sidebarAvatar">A</div>
+                <div>
+                    <div class="user-name" id="sidebarName">Admin</div>
+                    <div class="user-role" id="sidebarRole">Super Admin</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-content" id="mainContent">
+        <header class="header">
+            <div class="header-left">
+                <button class="hamburger-btn" onclick="toggleMobileSidebar()"><i class="fas fa-bars"></i></button>
+                <h1 class="page-title" id="pageTitle">System Overview</h1>
+            </div>
+            <div class="header-right">
+                <div class="theme-toggle" onclick="toggleTheme()"></div>
+                <span class="server-status-row" id="headerServerStatusRow" style="display:flex;align-items:center;gap:6px;margin-right:4px;">
+                    <span class="status-light" id="headerServerStatusLight"></span>
+                    <span id="headerServerStatusText" style="font-size:12px;color:var(--text-secondary);white-space:nowrap;"></span>
+                </span>
+                <select class="header-school-select" id="headerSchoolSelect" onchange="switchSchool(this.value)" style="display:inline-block;" title="Switch school"></select>
+                <button class="logout-btn" onclick="doLogout()" title="Logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
+            </div>
+        </header>
+        <div class="content-area">
+
+            <!-- ===== SYSTEM OVERVIEW (SUPER ADMIN DASHBOARD) ===== -->
+            <div class="page active" id="page-super-dashboard">
+                <h2>🛡️ System Overview <span class="annual-badge">SUPER ADMIN</span></h2>
+                <h3 style="margin:4px 0 8px;font-size:13px;color:var(--text-secondary);">🌍 Platform Totals (All Schools)</h3>
+                <div class="charts-grid">
+                    <div class="stat-card"><div class="stat-number" id="ptSchools">0</div><div class="stat-label">🏫 Total Schools</div></div>
+                    <div class="stat-card"><div class="stat-number" id="ptStudents">0</div><div class="stat-label">👨‍🎓 Total Students</div></div>
+                    <div class="stat-card"><div class="stat-number" id="ptTeachers">0</div><div class="stat-label">👨‍🏫 Total Teachers</div></div>
+                    <div class="stat-card"><div class="stat-number" id="ptPrincipals">0</div><div class="stat-label">👑 Total Principals</div></div>
+                    <div class="stat-card"><div class="stat-number" id="ptRevenue">₹0</div><div class="stat-label">💰 Total Revenue</div></div>
+                    <div class="stat-card"><div class="stat-number" id="ptServerStatus" style="font-size:16px;">—</div><div class="stat-label">🌐 Server Status</div></div>
+                </div>
+                <h3 style="margin:4px 0 8px;font-size:13px;color:var(--text-secondary);">🟢 Who's Online (This School)</h3>
+                <div class="charts-grid">
+                    <div class="stat-card-round" style="background:var(--bg-card);border-radius:50%;width:120px;height:120px;padding:8px;text-align:center;border:3px solid var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <div class="stat-number" id="saOnlinePrincipal">0</div><div class="stat-label">👑 Principal Online</div>
+                    </div>
+                    <div class="stat-card-round" style="background:var(--bg-card);border-radius:50%;width:120px;height:120px;padding:8px;text-align:center;border:3px solid var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <div class="stat-number" id="saOnlineTeachers">0</div><div class="stat-label">👨‍🏫 Teachers Online</div>
+                    </div>
+                    <div class="stat-card-round" style="background:var(--bg-card);border-radius:50%;width:120px;height:120px;padding:8px;text-align:center;border:3px solid var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <div class="stat-number" id="saOnlineStudents">0</div><div class="stat-label">👨‍🎓 Students Online</div>
+                    </div>
+                </div>
+                <h3 style="margin:4px 0 8px;font-size:13px;color:var(--text-secondary);">📊 Current School Stats</h3>
+                <div class="charts-grid">
+                    <div class="stat-card"><div class="stat-number" id="saStudents">0</div><div class="stat-label">👨‍🎓 Students</div></div>
+                    <div class="stat-card"><div class="stat-number" id="saTeachers">0</div><div class="stat-label">👨‍🏫 Teachers</div></div>
+                    <div class="stat-card"><div class="stat-number" id="saFees">₹0</div><div class="stat-label">💰 Fees Collected</div></div>
+                    <div class="stat-card"><div class="stat-number" id="saPending">0</div><div class="stat-label">📋 Pending Admissions</div></div>
+                    <div class="stat-card"><div class="stat-number" id="saHomework">0</div><div class="stat-label">📝 Homework</div></div>
+                    <div class="stat-card"><div class="stat-number" id="saNotices">0</div><div class="stat-label">📢 Notices</div></div>
+                </div>
+                <div class="charts-grid">
+                    <div class="table-card" style="padding:18px;">
+                        <h3 style="margin-bottom:10px;">⚙️ System Status</h3>
+                        <div id="saSystemStatus"></div>
+                    </div>
+                    <div class="table-card" style="padding:18px;">
+                        <h3 style="margin-bottom:10px;">🚀 Quick Actions</h3>
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <button class="btn btn-primary" onclick="openPage('super-dashboard');loadSuperDashboard();">📊 System Dashboard</button>
+                            <button class="btn btn-gold" onclick="openPage('admin-creds');loadAdminCreds();">🔐 Admin Credentials</button>
+                            <button class="btn btn-dark" onclick="openPage('data-manage');">🗄️ Data Management</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="charts-grid">
+                    <div class="table-card" style="padding:18px;">
+                        <h3 style="margin-bottom:10px;">👥 User Accounts</h3>
+                        <div id="saUserList"></div>
+                    </div>
+                    <div class="table-card" style="padding:18px;">
+                        <h3 style="margin-bottom:10px;">🎓 Recent Admissions</h3>
+                        <div id="saRecentApps"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ADMIN CREDENTIALS ===== -->
+            <div class="page" id="page-admin-creds">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">🔐 Admin Credentials <span class="annual-badge">SUPER ADMIN ONLY</span></h2>
+                    <form onsubmit="return false;">
+                        <div class="form-section">
+                            <h3 class="form-section-title">👑 Principal Login</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Current ID</label><input type="email" class="form-input" id="saPrincipalCurrent" readonly style="background:var(--bg);" /></div>
+                                <div class="form-group"><label>New ID (Email) *</label><input type="email" class="form-input" id="saPrincipalNewId" placeholder="principal@stfrancis.edu" /></div>
+                                <div class="form-group"><label>New Password *</label><input type="text" class="form-input" id="saPrincipalNewPwd" placeholder="Min 6 characters" /></div>
+                            </div>
+                            <button type="button" class="btn btn-gold" onclick="saveRoleCreds('principal')">💾 Update Principal</button>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">💰 Accountant Login</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Current ID</label><input type="email" class="form-input" id="saAccountantCurrent" readonly style="background:var(--bg);" /></div>
+                                <div class="form-group"><label>New ID (Email) *</label><input type="email" class="form-input" id="saAccountantNewId" placeholder="accounts@stfrancis.edu" /></div>
+                                <div class="form-group"><label>New Password *</label><input type="text" class="form-input" id="saAccountantNewPwd" placeholder="Min 6 characters" /></div>
+                            </div>
+                            <button type="button" class="btn btn-purple" onclick="saveRoleCreds('accountant')">💾 Update Accountant</button>
+                        </div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">🛡️ Admin Login</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Current ID</label><input type="email" class="form-input" id="saSuperCurrent" readonly style="background:var(--bg);" /></div>
+                                <div class="form-group"><label>New ID (Email) *</label><input type="email" class="form-input" id="saSuperNewId" placeholder="superadmin@stfrancis.edu" /></div>
+                                <div class="form-group"><label>New Password *</label><input type="text" class="form-input" id="saSuperNewPwd" placeholder="Min 6 characters" /></div>
+                            </div>
+                            <button type="button" class="btn btn-dark" onclick="saveRoleCreds('superadmin')">💾 Update Admin</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ===== MANAGE SCHOOLS ===== -->
+            <div class="page" id="page-school-manage">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">🏫 Manage Schools <span class="annual-badge">SUPER ADMIN ONLY</span></h2>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">This website serves multiple schools from a single server. Register up to 8 schools — each one keeps its own students, staff, fees and settings. Set a school's <b>Domain</b> to make it load automatically (with its own data) when that domain is opened.</p>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">➕ Add New School</h3>
+                        <div class="form-grid" style="grid-template-columns:1.6fr 1fr 1.3fr auto;">
+                            <div class="form-group"><label>School Name *</label><input type="text" class="form-input" id="newSchoolName" placeholder="e.g. St. Francis of Assisi School" /></div>
+                            <div class="form-group"><label>Tagline</label><input type="text" class="form-input" id="newSchoolTagline" placeholder='e.g. "Pax et Bonum" - Peace and Goodness' /></div>
+                            <div class="form-group"><label>Domain</label><input type="text" class="form-input" id="newSchoolDomain" placeholder="e.g. sfas.example.com" /></div>
+                            <div style="display:flex;align-items:flex-end;padding-bottom:4px;"><button type="button" class="btn btn-primary" onclick="addSchool()">➕ Add School</button></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">🏫 Registered Schools <span id="schoolCount" style="opacity:0.7;font-weight:500;"></span></h3>
+                        <div id="schoolList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== USER MANAGEMENT ===== -->
+            <div class="page" id="page-user-manage">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">👥 User Management <span class="annual-badge">SUPER ADMIN ONLY</span></h2>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Manage Principal/Accountant logins, and Teacher/Student accounts, for any registered school — no need to switch schools first.</p>
+
+                    <div class="form-section">
+                        <div class="form-group"><label>Select School</label><select class="form-input" id="umSchoolSelect" onchange="loadUserManage()"></select></div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">➕ Create / Update Account</h3>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Role *</label><select class="form-input" id="umRole"><option value="principal">👑 Principal</option><option value="accountant">💰 Accountant</option></select></div>
+                            <div class="form-group"><label>ID (Email) *</label><input type="email" class="form-input" id="umNewId" placeholder="principal@school.edu" /></div>
+                            <div class="form-group"><label>Password *</label><input type="text" class="form-input" id="umNewPwd" placeholder="Min 6 characters" /></div>
+                        </div>
+                        <button type="button" class="btn btn-gold" onclick="umSaveAccount()">💾 Save Account</button>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">🔐 Existing Admin Logins</h3>
+                        <div id="umAdminLogins"></div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">👨‍🏫 Teachers</h3>
+                        <div id="umTeacherList"></div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">👨‍🎓 Students</h3>
+                        <div id="umStudentList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== DATA MANAGEMENT ===== -->
+            <div class="page" id="page-data-manage">
+                <div class="form-card">
+                    <h2 style="margin-bottom:16px;">🗄️ Data Management <span class="annual-badge">SUPER ADMIN ONLY</span></h2>
+                    <div class="form-section">
+                        <h3 class="form-section-title">📤 Export Data</h3>
+                        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Download a full backup of all school data as a JSON file.</p>
+                        <button class="btn btn-primary" onclick="exportAllData()"><i class="fas fa-download"></i> Download Backup</button>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">📥 Import Data</h3>
+                        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Restore all data from a previously downloaded backup file.</p>
+                        <input type="file" id="importDataInput" accept=".json,application/json" style="display:none;" onchange="importAllData(this)" />
+                        <button class="btn btn-gold" onclick="document.getElementById('importDataInput').click()"><i class="fas fa-upload"></i> Restore Backup</button>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">🌐 Server Settings & Sync</h3>
+                        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Connect to a server (API endpoint) to store and retrieve the database for all schools. The server must accept <b>GET</b> and <b>PUT</b> requests on the URL.</p>
+                        <div class="form-grid" style="grid-template-columns:2fr 1fr;">
+                            <div class="form-group"><label>Server / API URL *</label><input type="url" class="form-input" id="serverUrl" placeholder="https://your-server.com/api/school-data.json" onchange="saveServerSettings()" /></div>
+                            <div class="form-group"><label>API Token (optional)</label><input type="text" class="form-input" id="serverToken" placeholder="Bearer token / secret" onchange="saveServerSettings()" /></div>
+                        </div>
+                        <div class="server-status-row" id="serverStatusRow" style="display:flex;">
+                            <span class="status-light" id="serverStatusLight"></span>
+                            <span id="serverStatusText" style="font-size:12px;color:var(--text-secondary);"></span>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="btn btn-primary" onclick="checkServerConnection()">🔍 Test Connection</button>
+                            <button class="btn btn-gold" onclick="syncPush()">📤 Push Data to Server</button>
+                            <button class="btn btn-dark" onclick="syncPull()">📥 Pull Data from Server</button>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h3 class="form-section-title">🧹 Reset Data</h3>
+                        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Reset the system to the original demo data or erase everything.</p>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="btn btn-dark" onclick="resetAllData()">🔄 Reset to Demo Data</button>
+                            <button class="btn btn-danger" onclick="clearAllData()">🗑️ Clear All Data</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /content-area -->
+    </div><!-- /main-content -->
+</div><!-- /app-container -->
+
+<!-- ===== SCRIPTS ===== -->
+<script src="assets/vendor/apexcharts.min.js"></script>
+<script src="assets/vendor/qrcode.min.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
