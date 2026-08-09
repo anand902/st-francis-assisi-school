@@ -1,0 +1,36 @@
+{
+  "name": "sfa-school-desktop",
+  "version": "1.0.0",
+  "description": "St. Francis of Assisi School - Desktop App",
+  "main": "main.js",
+  "author": "St. Francis of Assisi School",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "school.sfas.desktop",
+    "productName": "SFAS School",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.svg",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
