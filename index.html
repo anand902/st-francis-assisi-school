@@ -13001,10 +13001,13 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
                     </div>
                     <div class="table-card" style="padding:18px;">
                         <h3 style="margin-bottom:10px;">☁️ Cloud Details</h3>
+                        <div class="sa-status-row"><span>🔥 Firebase</span><strong id="saFirebaseStatus">—</strong></div>
+                        <div class="sa-status-row"><span>🗄️ Firestore Database</span><strong id="saFirestoreStatus">—</strong></div>
                         <div class="sa-status-row"><span>📦 Documents</span><strong id="saCloudDocs">0</strong></div>
                         <div class="sa-status-row"><span>🏫 Schools with data</span><strong id="saCloudSchools">0</strong></div>
                         <div class="sa-status-row"><span>💾 Last Backup</span><strong id="saCloudLastBackup">—</strong></div>
                         <div class="sa-status-row"><span>🔌 Cloud Sync</span><strong id="saCloudStatus">—</strong></div>
+                        <div class="sa-status-row"><span>💾 Data Saved In</span><strong id="saDataLocation" style="text-align:right;">—</strong></div>
                     </div>
                 </div>
                 <div class="charts-grid">
@@ -13312,6 +13315,7 @@ let cloudOnline = (typeof navigator !== 'undefined' ? navigator.onLine !== false
 let cloudPullDone = false;   // initial pull finished (blocks default-seed writes from clobbering cloud)
 const cloudWriteTimers = {};
 const cloudPendingData = {};
+const cloudPendingDeletes = {};
 const CLOUD_META_KEY = 'sfa__cloudSyncMeta';
 
 function cloudMeta() {
@@ -13347,6 +13351,7 @@ function initFirebase() {
         firebaseApp = window.firebase.initializeApp(FIREBASE_CONFIG, 'sfas');
         firestoreDb = window.firebase.firestore(firebaseApp);
         cloudAvailable = true;
+        flushPendingCloud();
         console.log('Firebase initialized:', FIREBASE_CONFIG.projectId);
     } catch (e) {
         console.warn('Firebase init failed:', e);
@@ -13364,11 +13369,25 @@ function cloudDocRef(key) {
 }
 
 function cloudWrite(key, data) {
-    if (!cloudEnabled() || GLOBAL_KEYS.includes(key)) return;
+    if (GLOBAL_KEYS.includes(key)) return;
     cloudPendingData[key] = data;
+    delete cloudPendingDeletes[key];
     clearTimeout(cloudWriteTimers[key]);
     cloudWriteTimers[key] = setTimeout(function () {
         delete cloudWriteTimers[key];
+        if (cloudEnabled()) {
+            flushCloudWrites();
+        } else {
+            setCloudStatus();
+        }
+    }, 400);
+}
+
+function flushCloudWrites() {
+    if (!cloudEnabled()) return;
+    Object.keys(cloudPendingData).forEach(function (key) {
+        const data = cloudPendingData[key];
+        if (data === undefined) return;
         delete cloudPendingData[key];
         try {
             const preTs = (cloudMeta()[key] || 0);
@@ -13382,43 +13401,44 @@ function cloudWrite(key, data) {
                 cloudMetaSet(key, preTs);
             });
         } catch (e) { console.warn('Firestore write error for', key, e); }
-    }, 400);
-}
-
-function flushCloudWrites() {
-    Object.keys(cloudWriteTimers).forEach(function (key) {
-        clearTimeout(cloudWriteTimers[key]);
-        delete cloudWriteTimers[key];
-        const data = cloudPendingData[key];
-        delete cloudPendingData[key];
-        if (data === undefined) return;
-        try {
-            cloudDocRef(key).set(
-                { data: data, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() },
-                { merge: true }
-            ).then(function () {
-                cloudMetaSet(key, Date.now());
-            }).catch(function (e) {
-                console.warn('Firestore write failed for', key, e);
-            });
-        } catch (e) { console.warn('Firestore flush error for', key, e); }
     });
 }
 
+function flushCloudDeletes() {
+    if (!cloudEnabled()) return;
+    Object.keys(cloudPendingDeletes).forEach(function (key) {
+        delete cloudPendingDeletes[key];
+        try {
+            cloudDocRef(key).delete().catch(function (e) {
+                console.warn('Firestore delete failed for', key, e);
+                cloudPendingDeletes[key] = true;
+            });
+        } catch (e) { console.warn('Firestore delete error for', key, e); }
+    });
+}
+
+function flushPendingCloud() {
+    if (!cloudEnabled()) return;
+    flushCloudWrites();
+    flushCloudDeletes();
+    setCloudStatus();
+}
+
 if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', flushCloudWrites);
+    window.addEventListener('beforeunload', flushPendingCloud);
 }
 
 function cloudRemove(key) {
-    if (!cloudAvailable || !cloudOnline || !cloudPullDone || !firestoreDb || GLOBAL_KEYS.includes(key)) return;
+    if (GLOBAL_KEYS.includes(key)) return;
     clearTimeout(cloudWriteTimers[key]);
     delete cloudWriteTimers[key];
-    try {
-        cloudDocRef(key).delete().catch(function (e) { console.warn('Firestore delete failed for', key, e); });
-    } catch (e) { console.warn('Firestore delete error for', key, e); }
+    delete cloudPendingData[key];
+    cloudPendingDeletes[key] = true;
+    flushCloudDeletes();
 }
 
 function setCloudStatus() {
+    updateSaCloudStatus();
     const row = document.getElementById('headerCloudStatusRow');
     const light = document.getElementById('headerCloudStatusLight');
     const text = document.getElementById('headerCloudStatusText');
@@ -13436,6 +13456,29 @@ function setCloudStatus() {
     } else {
         light.className = 'status-light red';
         text.textContent = 'Offline';
+    }
+}
+
+function updateSaCloudStatus() {
+    const fb = document.getElementById('saFirebaseStatus');
+    const db = document.getElementById('saFirestoreStatus');
+    const loc = document.getElementById('saDataLocation');
+    if (!fb && !db && !loc) return;
+    const proj = FIREBASE_CONFIG ? FIREBASE_CONFIG.projectId : '';
+    if (fb) {
+        fb.textContent = cloudAvailable
+            ? '🟢 Connected (' + proj + ')'
+            : '🔴 Not connected';
+    }
+    if (db) {
+        db.textContent = cloudAvailable && firestoreDb
+            ? '🟢 Connected'
+            : '🔴 Not connected';
+    }
+    if (loc) {
+        loc.innerHTML = cloudAvailable && firestoreDb
+            ? '☁️ Firestore: <code style="font-size:10px;">schools/' + escapeHtml(getCurrentSchoolId()) + '/data</code><br>📦 + Browser (localStorage)'
+            : '📦 Browser (localStorage)';
     }
 }
 
@@ -13469,6 +13512,7 @@ function syncFromCloud() {
                 });
                 cloudPullDone = true;
                 setCloudStatus();
+                flushPendingCloud();
                 if (changed) {
                     console.log('Cloud sync: pulled', applied, 'key(s) from cloud');
                     try { showToast('☁️ Data synced from cloud', 'success'); } catch (e) {}
@@ -13481,11 +13525,13 @@ function syncFromCloud() {
                 console.warn('Cloud pull failed:', e);
                 cloudPullDone = true;
                 setCloudStatus();
+                flushPendingCloud();
             });
     } catch (e) {
         console.warn('Cloud pull error:', e);
         cloudPullDone = true;
         setCloudStatus();
+        flushPendingCloud();
     }
 }
 
@@ -13503,6 +13549,7 @@ window.addEventListener('online', function () {
         loadFirebaseSDK(function () { initFirebase(); syncFromCloud(); });
     } else {
         syncFromCloud();
+        flushPendingCloud();
     }
     setCloudStatus();
 });
@@ -14886,6 +14933,7 @@ function renderPlatformTotals() {
 function loadSuperDashboard() {
     renderOnlineStatus();
     renderPlatformTotals();
+    updateSaCloudStatus();
     if (typeof renderCloudStorage === 'function') renderCloudStorage();
     const students = State.students.length;
     const teachers = State.teachers.length;
