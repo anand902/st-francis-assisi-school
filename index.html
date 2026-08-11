@@ -11259,6 +11259,10 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
         .idcard-val { font-weight: 700; }
         .idcard-footer { position: absolute; bottom: 5px; left: 0; right: 0; font-size: 9px; font-weight: 700; opacity: 0.85; text-align: center; }
         .idcard-preview-note { width: 220px; min-height: 352px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--border); border-radius: 14px; color: var(--text-secondary); font-size: 12px; padding: 16px; text-align: center; flex-shrink: 0; }
+        .idcard-template-card { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+        .idcard-template-thumb { width: 100%; aspect-ratio: 220 / 352; background-size: cover; background-position: center; }
+        .idcard-template-name { font-size: 12px; font-weight: 600; padding: 8px 8px 2px; }
+        .idcard-template-actions { display: flex; gap: 6px; padding: 8px; }
 
         .compressing-indicator { display: none; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; background: var(--warning-light); border-radius: 8px; margin-top: 8px; font-size: 12px; color: #B45309; font-weight: 500; }
         .compressing-indicator.show { display: flex; }
@@ -13198,6 +13202,18 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
                 <h2>🪪 ID Card Generator <span class="annual-badge">SUPER ADMIN ONLY</span></h2>
                 <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Design one ID card and print it for students, teachers and support staff of the currently selected school. Cards print 10 per A4 page in landscape.</p>
 
+                <div class="form-card" style="margin-bottom:18px;">
+                    <h2 style="margin-bottom:4px;">🗂️ School ID Template Library <span class="annual-badge">SHARED WITH PRINCIPAL</span></h2>
+                    <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">Upload ID card designs here for the <strong>currently selected school</strong>. The school's Principal can open <strong>School ID Template</strong> in their panel and choose any design from this library for the school ID card.</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+                        <input type="text" class="form-input" id="idcardTemplateName" placeholder="Template name (e.g. Blue Wave)" style="max-width:220px;" />
+                        <input type="file" id="idcardTemplateInput" accept="image/*" style="display:none;" onchange="uploadIdCardTemplate(this)" />
+                        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('idcardTemplateInput').click()">📤 Upload Template</button>
+                    </div>
+                    <div class="compressing-indicator" id="idcardTemplateCompressing" style="justify-content:center;"><div class="spinner"></div><span>Compressing...</span></div>
+                    <div id="idcardTemplateList"></div>
+                </div>
+
                 <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;">
                     <div>
                         <div class="form-card">
@@ -13270,6 +13286,28 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
                 </div>
             </div>
 
+            <!-- Principal: School ID Template -->
+            <div class="page" id="page-id-template">
+                <h2>🎨 School ID Template</h2>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Choose a design for your school's ID cards. Designs are uploaded by the Super Admin. The chosen design is applied to all student, teacher and support staff cards.</p>
+
+                <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;">
+                    <div>
+                        <div class="form-card" style="text-align:center;">
+                            <h2 style="margin-bottom:14px;">👁️ Current Design</h2>
+                            <div id="idTemplateCurrentPreview" style="display:flex;justify-content:center;padding:0 0 14px;"></div>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="removeSelectedIdTemplate()">🗑️ Remove Design (use default)</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-card">
+                            <h2 style="margin-bottom:14px;">🗂️ Available Templates <span id="idTemplateCount" style="opacity:0.7;font-weight:500;"></span></h2>
+                            <div id="idTemplateGrid"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -13305,7 +13343,8 @@ const CLOUD_KEYS = [
     'sfaQRCodes', 'sfaNotices', 'sfaMarks', 'sfaAdmissionFees', 'sfaReAdmissionFees',
     'sfaHomework', 'sfaHomeworkViews', 'sfaSupportStaff', 'sfalkgApplications', 'sfageneralApplications',
     'sfaSchoolSettings', 'sfaMarkSettings', 'sfaMarkPermissions', 'sfaSubjects',
-    'sfaMeetings', 'sfaIdCardSettings', 'sfaPrincipalAuth', 'sfaAccountantAuth'
+    'sfaMeetings', 'sfaIdCardSettings', 'sfaPrincipalAuth', 'sfaAccountantAuth',
+    'sfaIdCardTemplates'
 ];
 
 let firebaseApp = null;
@@ -13516,7 +13555,16 @@ function syncFromCloud() {
                 if (changed) {
                     console.log('Cloud sync: pulled', applied, 'key(s) from cloud');
                     try { showToast('☁️ Data synced from cloud', 'success'); } catch (e) {}
-                    setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
+                    try {
+                        if (sessionStorage.getItem('sfaCloudReloaded')) {
+                            console.log('Cloud sync: data applied in place, skipping reload to avoid refresh loop');
+                        } else {
+                            sessionStorage.setItem('sfaCloudReloaded', '1');
+                            setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
+                        }
+                    } catch (e) {
+                        setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
+                    }
                 } else {
                     console.log('Cloud sync: up to date');
                 }
@@ -16774,6 +16822,7 @@ function buildSidebar() {
             <button class="nav-item" onclick="openPage('principal-performance',this);loadPrincipalPerformance();"><i class="fas fa-trophy"></i>Teacher Performance</button>
             <div class="nav-section"><div class="nav-section-title">Administration</div></div>
             <button class="nav-item" onclick="openPage('school-settings',this);loadSchoolSettings();"><i class="fas fa-sliders-h"></i>School Settings</button>
+            <button class="nav-item" onclick="openPage('id-template',this);loadIdTemplatePage();"><i class="fas fa-palette"></i>School ID Template</button>
             <button class="nav-item" onclick="openPage('support-staff',this);loadSupportStaff();"><i class="fas fa-user-tie"></i>Support Staff</button>
             <div class="nav-section"><div class="nav-section-title">Meetings</div></div>
             <button class="nav-item" onclick="openPage('meetings',this);loadMeetingsPage();"><i class="fas fa-video"></i>Meetings</button>
@@ -16888,7 +16937,8 @@ function openPage(name, el) {
         'school-settings':'School Settings',
         'duplicates':'Duplicate Data Check',
         'super-dashboard':'System Overview','admin-creds':'Admin Credentials','school-manage':'Manage Schools','user-manage':'User Management','data-manage':'Data Management',
-        'id-cards':'ID Card Generator'
+        'id-cards':'ID Card Generator',
+        'id-template':'School ID Template'
     };
     document.getElementById('pageTitle').textContent = titles[name] || name;
     if (name === 'data-manage') loadServerSettings();
@@ -20160,7 +20210,8 @@ let idCardSettings = Object.assign({
     showClass: true,
     showExtra: true,
     showContact: true,
-    photoShape: 'rounded'
+    photoShape: 'rounded',
+    templateId: ''
 }, Storage.get('sfaIdCardSettings', {}));
 
 function saveIdCardSettings() {
@@ -20198,6 +20249,7 @@ function loadIdCardPage() {
         document.getElementById('idcardBgRemoveBtn').style.display = 'none';
     }
     populateIdCardClassFilter();
+    renderIdCardTemplateLibrary();
     loadIdCardPreview();
 }
 
@@ -20431,6 +20483,172 @@ function removeIdCardBg() {
     document.getElementById('idcardBgRemoveBtn').style.display = 'none';
     loadIdCardPreview();
     showToast('🖼️ Card background removed', 'info');
+}
+
+// ============================================================================
+// SCHOOL ID TEMPLATE LIBRARY (Super Admin uploads → Principal chooses)
+// ============================================================================
+
+const ID_CARD_TEMPLATES_KEY = 'sfaIdCardTemplates';
+
+function getIdCardTemplates() {
+    let list = Storage.get(ID_CARD_TEMPLATES_KEY, []);
+    if (!Array.isArray(list)) list = [];
+    return list.filter(t => t && typeof t === 'object' && t.id && t.bg);
+}
+
+function saveIdCardTemplates(list) {
+    Storage.set(ID_CARD_TEMPLATES_KEY, list);
+}
+
+function renderIdCardTemplateLibrary() {
+    const listEl = document.getElementById('idcardTemplateList');
+    if (!listEl) return;
+    const list = getIdCardTemplates();
+    if (!list.length) {
+        listEl.innerHTML = '<p style="font-size:12px;color:var(--text-secondary);">No templates yet. Upload a card design to share it with the Principal.</p>';
+        return;
+    }
+    const currentTemplateId = idCardSettings.templateId || '';
+    listEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">' +
+        list.map(t => {
+            const active = t.id === currentTemplateId;
+            return `
+            <div class="idcard-template-card" style="${active ? 'outline:3px solid var(--primary);outline-offset:2px;' : ''}">
+                <div class="idcard-template-thumb" style="background-image:url(${t.bg});"></div>
+                <div class="idcard-template-name">${escapeHtml(t.name || 'Untitled')}</div>
+                <div class="idcard-template-actions">
+                    <button type="button" class="btn ${active ? 'btn-success' : 'btn-primary'} btn-sm" style="flex:1;" onclick="applyIdCardTemplate('${t.id}')">${active ? '✓ Applied' : 'Use'}</button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="deleteIdCardTemplate('${t.id}')">🗑️</button>
+                </div>
+            </div>`;
+        }).join('') + '</div>';
+}
+
+function uploadIdCardTemplate(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.type.match(/image\/(jpeg|png|jpg)/)) {
+        showToast('Please select a JPG or PNG image.', 'warning');
+        input.value = '';
+        return;
+    }
+    const nameInput = document.getElementById('idcardTemplateName');
+    const name = (nameInput ? nameInput.value : '').trim();
+    if (!name) {
+        showToast('⚠️ Please enter a template name first.', 'warning');
+        input.value = '';
+        return;
+    }
+    const indicator = document.getElementById('idcardTemplateCompressing');
+    if (indicator) indicator.classList.add('show');
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            let w = img.width, h = img.height;
+            const MAX = 800;
+            if (w > h && w > MAX) { h = Math.round((h * MAX) / w); w = MAX; }
+            else if (h > MAX) { w = Math.round((w * MAX) / h); h = MAX; }
+            canvas.width = w; canvas.height = h;
+            ctx.fillStyle = '#FFF';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+
+            let quality = 0.85;
+            let dataUrl = canvas.toDataURL('image/jpeg', quality);
+            let kb = Math.round((dataUrl.length * 3) / 4096);
+            while (kb > 500 && quality > 0.1) {
+                quality -= 0.1;
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+                kb = Math.round((dataUrl.length * 3) / 4096);
+            }
+
+            const list = getIdCardTemplates();
+            list.push({ id: 'tpl-' + Date.now(), name: name, bg: dataUrl, createdAt: Date.now() });
+            saveIdCardTemplates(list);
+            if (nameInput) nameInput.value = '';
+            input.value = '';
+            if (indicator) indicator.classList.remove('show');
+            renderIdCardTemplateLibrary();
+            showToast('✅ Template "' + name + '" added to the library!', 'success');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function deleteIdCardTemplate(id) {
+    if (!confirm('Delete this template from the library?')) return;
+    const list = getIdCardTemplates().filter(t => t.id !== id);
+    saveIdCardTemplates(list);
+    if (idCardSettings.templateId === id) {
+        idCardSettings.templateId = '';
+        idCardSettings.bg = '';
+        Storage.set('sfaIdCardSettings', idCardSettings);
+    }
+    renderIdCardTemplateLibrary();
+    loadIdTemplatePage();
+    showToast('🗑️ Template deleted.', 'info');
+}
+
+function applyIdCardTemplate(id) {
+    const tpl = getIdCardTemplates().find(t => t.id === id);
+    if (!tpl) { showToast('❌ Template not found.', 'error'); return; }
+    idCardSettings.bg = tpl.bg;
+    idCardSettings.templateId = id;
+    Storage.set('sfaIdCardSettings', idCardSettings);
+    renderIdCardTemplateLibrary();
+    loadIdTemplatePage();
+    if (typeof loadIdCardPage === 'function') loadIdCardPage();
+    showToast('🎨 ID card design applied!', 'success');
+}
+
+function removeSelectedIdTemplate() {
+    idCardSettings.templateId = '';
+    idCardSettings.bg = '';
+    Storage.set('sfaIdCardSettings', idCardSettings);
+    renderIdCardTemplateLibrary();
+    loadIdTemplatePage();
+    if (typeof loadIdCardPage === 'function') loadIdCardPage();
+    showToast('🗑️ Using the default card design.', 'info');
+}
+
+function idCardTemplateCardHtml(t) {
+    const active = idCardSettings.templateId === t.id;
+    return `
+        <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;${active ? 'outline:3px solid var(--primary);outline-offset:2px;' : ''}">
+            <div class="idcard-template-thumb" style="background-image:url(${t.bg});"></div>
+            <div style="padding:10px;">
+                <strong style="font-size:13px;display:block;margin-bottom:8px;">${escapeHtml(t.name || 'Untitled')}</strong>
+                <button type="button" class="btn ${active ? 'btn-success' : 'btn-primary'} btn-sm" style="width:100%;" onclick="applyIdCardTemplate('${t.id}')">${active ? '✓ Current Design' : 'Use this design'}</button>
+            </div>
+        </div>`;
+}
+
+function loadIdTemplatePage() {
+    const listEl = document.getElementById('idTemplateGrid');
+    const countEl = document.getElementById('idTemplateCount');
+    const previewEl = document.getElementById('idTemplateCurrentPreview');
+    const list = getIdCardTemplates();
+    if (countEl) countEl.textContent = '(' + list.length + ')';
+    if (listEl) {
+        if (!list.length) {
+            listEl.innerHTML = '<div class="idcard-preview-note" style="width:100%;min-height:120px;">No templates available yet.<br>Ask the Super Admin to upload ID card designs.</div>';
+        } else {
+            listEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;">' + list.map(idCardTemplateCardHtml).join('') + '</div>';
+        }
+    }
+    if (previewEl) {
+        if (idCardSettings.bg) {
+            previewEl.innerHTML = '<div class="idcard" style="background-image:url(' + idCardSettings.bg + ');background-size:cover;background-position:center;"></div>';
+        } else {
+            previewEl.innerHTML = '<div class="idcard-preview-note">No custom design selected.<br>The default school card design will be used.</div>';
+        }
+    }
 }
 
 function printIdCards() {
