@@ -11943,7 +11943,6 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
             </div>
             <div class="header-right">
                 <div class="theme-toggle" onclick="toggleTheme()"></div>
-                <span class="server-status-row" id="headerServerStatusRow" style="display:none;align-items:center;gap:6px;margin-right:4px;"><span class="status-light" id="headerServerStatusLight"></span><span id="headerServerStatusText" style="font-size:12px;color:var(--text-secondary);white-space:nowrap;"></span></span>
                 <span class="server-status-row" id="headerCloudStatusRow" style="display:none;align-items:center;gap:6px;margin-right:4px;" title="Cloud sync status"><span class="status-light" id="headerCloudStatusLight"></span><span id="headerCloudStatusText" style="font-size:12px;color:var(--text-secondary);white-space:nowrap;"></span></span>
                 <select class="header-school-select" id="headerSchoolSelect" onchange="switchSchool(this.value)" style="display:none;" title="Switch school"></select>
                 <button class="logout-btn" onclick="doLogout()" title="Logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
@@ -12976,7 +12975,6 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
                     <div class="stat-card"><div class="stat-number" id="ptTeachers">0</div><div class="stat-label">👨‍🏫 Total Teachers</div></div>
                     <div class="stat-card"><div class="stat-number" id="ptPrincipals">0</div><div class="stat-label">👑 Total Principals</div></div>
                     <div class="stat-card"><div class="stat-number" id="ptRevenue">₹0</div><div class="stat-label">💰 Total Revenue</div></div>
-                    <div class="stat-card"><div class="stat-number" id="ptServerStatus" style="font-size:16px;">—</div><div class="stat-label">🌐 Server Status</div></div>
                 </div>
                 <h3 style="margin:4px 0 8px;font-size:13px;color:var(--text-secondary);">🟢 Who's Online (This School)</h3>
                 <div class="charts-grid">
@@ -13091,23 +13089,6 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
                         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Restore all data from a previously downloaded backup file.</p>
                         <input type="file" id="importDataInput" accept=".json,application/json" style="display:none;" onchange="importAllData(this)" />
                         <button class="btn btn-gold" onclick="document.getElementById('importDataInput').click()"><i class="fas fa-upload"></i> Restore Backup</button>
-                    </div>
-                    <div class="form-section">
-                        <h3 class="form-section-title">🌐 Server Settings & Sync</h3>
-                        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Connect to a server (API endpoint) to store and retrieve the database for all schools. The server must accept <b>GET</b> and <b>PUT</b> requests on the URL.</p>
-                        <div class="form-grid" style="grid-template-columns:2fr 1fr;">
-                            <div class="form-group"><label>Server / API URL *</label><input type="url" class="form-input" id="serverUrl" placeholder="https://your-server.com/api/school-data.json" onchange="saveServerSettings()" /></div>
-                            <div class="form-group"><label>API Token (optional)</label><input type="text" class="form-input" id="serverToken" placeholder="Bearer token / secret" onchange="saveServerSettings()" /></div>
-                        </div>
-                        <div class="server-status-row" id="serverStatusRow" style="display:none;">
-                            <span class="status-light" id="serverStatusLight"></span>
-                            <span id="serverStatusText" style="font-size:12px;color:var(--text-secondary);"></span>
-                        </div>
-                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="btn btn-primary" onclick="checkServerConnection()">🔍 Test Connection</button>
-                            <button class="btn btn-gold" onclick="syncPush()">📤 Push Data to Server</button>
-                            <button class="btn btn-dark" onclick="syncPull()">📥 Pull Data from Server</button>
-                        </div>
                     </div>
                     <div class="form-section">
                         <h3 class="form-section-title">☁️ Firebase Backup</h3>
@@ -14966,16 +14947,6 @@ function renderPlatformTotals() {
     set('ptTeachers', t.teachers);
     set('ptPrincipals', t.principals);
     set('ptRevenue', '₹' + t.revenue.toLocaleString('en-IN'));
-    const statusEl = document.getElementById('ptServerStatus');
-    if (statusEl) {
-        const s = getServerSettings();
-        const light = document.getElementById('headerServerStatusLight');
-        const cls = light ? light.className : '';
-        if (!s.url) { statusEl.textContent = '⚪ Not Configured'; }
-        else if (cls.includes('green')) { statusEl.textContent = '🟢 Connected'; }
-        else if (cls.includes('yellow')) { statusEl.textContent = '🟡 Connecting'; }
-        else { statusEl.textContent = '🔴 Offline'; }
-    }
 }
 
 function loadSuperDashboard() {
@@ -15419,67 +15390,6 @@ function importAllData(input) {
 }
 
 // ============================================================================
-// SERVER SETTINGS & SYNC
-// ============================================================================
-
-const SERVER_SETTINGS_KEY = 'sfaServerSettings';
-
-function getServerSettings() {
-    return Storage.get(SERVER_SETTINGS_KEY, { url: '', token: '' });
-}
-
-function currentServerSettings() {
-    return {
-        url: (document.getElementById('serverUrl')?.value || '').trim(),
-        token: (document.getElementById('serverToken')?.value || '').trim()
-    };
-}
-
-function saveServerSettings() {
-    const { url, token } = currentServerSettings();
-    if (!url) {
-        setServerStatus('offline', 'No server URL configured.');
-        return;
-    }
-    Storage.set(SERVER_SETTINGS_KEY, { url, token });
-    showToast('💾 Server settings saved!', 'success');
-}
-
-function loadServerSettings() {
-    const s = getServerSettings();
-    const urlEl = document.getElementById('serverUrl');
-    const tokenEl = document.getElementById('serverToken');
-    if (urlEl) urlEl.value = s.url || '';
-    if (tokenEl) tokenEl.value = s.token || '';
-    if (s.url) {
-        checkServerConnection();
-    } else {
-        setServerStatus('offline', 'No server URL configured.');
-    }
-}
-
-function setServerStatus(mode, text) {
-    const row = document.getElementById('serverStatusRow');
-    const light = document.getElementById('serverStatusLight');
-    const label = document.getElementById('serverStatusText');
-    const cls = 'status-light ' + (mode === 'connecting' ? 'yellow' : mode === 'connected' ? 'green' : 'red');
-    if (row && light && label) {
-        row.style.display = 'flex';
-        light.className = cls;
-        label.textContent = text || '';
-    }
-    const hLight = document.getElementById('headerServerStatusLight');
-    const hLabel = document.getElementById('headerServerStatusText');
-    if (hLight && hLabel) {
-        hLight.className = cls;
-        hLabel.textContent = mode === 'connected' ? 'Server Online' : mode === 'connecting' ? 'Connecting...' : 'Server Offline';
-    }
-    const ptEl = document.getElementById('ptServerStatus');
-    if (ptEl) {
-        ptEl.textContent = mode === 'connected' ? '🟢 Connected' : mode === 'connecting' ? '🟡 Connecting' : (getServerSettings().url ? '🔴 Offline' : '⚪ Not Configured');
-    }
-}
-
 // ============================================================================
 // ONLINE PRESENCE TRACKING
 // ============================================================================
@@ -15488,7 +15398,6 @@ const ONLINE_SESSIONS_KEY = 'sfaOnlineSessions';
 const ONLINE_TIMEOUT_MS = 90 * 1000; // considered offline if no heartbeat in 90s
 let heartbeatTimer = null;
 let onlineStatusTimer = null;
-let serverPollTimer = null;
 
 function getOnlineSessions() {
     return Storage.get(ONLINE_SESSIONS_KEY, {});
@@ -15565,93 +15474,6 @@ function startOnlineStatusPolling() {
 
 function stopOnlineStatusPolling() {
     if (onlineStatusTimer) { clearInterval(onlineStatusTimer); onlineStatusTimer = null; }
-}
-
-async function checkServerConnection() {
-    const { url, token } = currentServerSettings();
-    if (!url) {
-        setServerStatus('offline', 'No server URL configured.');
-        showToast('❌ Please enter a server URL first.', 'warning');
-        return;
-    }
-    Storage.set(SERVER_SETTINGS_KEY, { url, token });
-    setServerStatus('connecting', 'Trying to connect to server...');
-    try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: token ? { 'Authorization': 'Bearer ' + token } : {},
-            signal: controller.signal
-        });
-        clearTimeout(timer);
-        setServerStatus('connected', 'Connected to server (HTTP ' + res.status + ').');
-        showToast('🟢 Server connection OK!', 'success');
-    } catch (e) {
-        setServerStatus('offline', 'Server offline or unreachable: ' + (e.name === 'AbortError' ? 'timed out' : e.message));
-        showToast('🔴 Server offline: ' + (e.name === 'AbortError' ? 'timed out' : e.message), 'danger');
-    }
-}
-
-async function syncPush() {
-    const { url, token } = currentServerSettings();
-    if (!url) {
-        setServerStatus('offline', 'No server URL configured.');
-        showToast('❌ Please configure the server URL first.', 'warning');
-        return;
-    }
-    Storage.set(SERVER_SETTINGS_KEY, { url, token });
-    setServerStatus('connecting', 'Pushing data to server...');
-    try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
-        const res = await fetch(url, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': 'Bearer ' + token } : {})
-            },
-            body: JSON.stringify({ app: 'sfas-school', version: 6.1, exportedAt: new Date().toISOString(), data: collectAllData() }),
-            signal: controller.signal
-        });
-        clearTimeout(timer);
-        if (!res.ok) throw new Error('Server responded HTTP ' + res.status);
-        setServerStatus('connected', 'Data pushed to server at ' + new Date().toLocaleTimeString() + '.');
-        showToast('📤 Data pushed to server successfully!', 'success');
-    } catch (e) {
-        setServerStatus('offline', 'Push failed: ' + (e.name === 'AbortError' ? 'timed out' : e.message));
-        showToast('🔴 Push failed: ' + (e.name === 'AbortError' ? 'timed out' : e.message), 'danger');
-    }
-}
-
-async function syncPull() {
-    const { url, token } = currentServerSettings();
-    if (!url) {
-        setServerStatus('offline', 'No server URL configured.');
-        showToast('❌ Please configure the server URL first.', 'warning');
-        return;
-    }
-    if (!confirm('Pull data from server? This will overwrite ALL local data for every school.')) return;
-    setServerStatus('connecting', 'Pulling data from server...');
-    try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: token ? { 'Authorization': 'Bearer ' + token } : {},
-            signal: controller.signal
-        });
-        clearTimeout(timer);
-        if (!res.ok) throw new Error('Server responded HTTP ' + res.status);
-        const payload = await res.json();
-        const count = restoreAllData(payload);
-        setServerStatus('connected', 'Pulled ' + count + ' entries from server at ' + new Date().toLocaleTimeString() + '.');
-        showToast('📥 Data pulled (' + count + ' entries). Reloading...', 'success');
-        setTimeout(() => location.reload(), 1200);
-    } catch (e) {
-        setServerStatus('offline', 'Pull failed: ' + (e.name === 'AbortError' ? 'timed out' : e.message));
-        showToast('🔴 Pull failed: ' + (e.name === 'AbortError' ? 'timed out' : e.message), 'danger');
-    }
 }
 
 function resetAllData() {
@@ -16484,7 +16306,6 @@ function doLogout() {
     markOffline();
     stopHeartbeat();
     stopOnlineStatusPolling();
-    if (serverPollTimer) { clearInterval(serverPollTimer); serverPollTimer = null; }
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('loginPage').style.display = 'flex';
     State.currentUser = null;
@@ -16498,6 +16319,8 @@ function doLogout() {
 
 let qrScannerStream = null;
 let qrScanTimer = null;
+let qrScanRAF = null;
+let qrScanBusy = false;
 let qrScanning = false;
 let qrTeacherPending = null;
 let qrStudentPending = null;
@@ -16538,7 +16361,9 @@ function startQRScanner() {
             video.play().catch(function () {});
             sc.style.display = 'block';
             if (qrScanTimer) clearInterval(qrScanTimer);
-            qrScanTimer = setInterval(scanQRFrame, 350);
+            if (qrScanRAF) cancelAnimationFrame(qrScanRAF);
+            qrScanBusy = false;
+            qrScanRAF = requestAnimationFrame(scanQRLoop);
         })
         .catch(function () {
             showToast('Camera access denied. Please allow camera permission.', 'error');
@@ -16547,14 +16372,25 @@ function startQRScanner() {
         });
 }
 
+function scanQRLoop() {
+    if (!qrScanning || !qrScannerStream) return;
+    if (!qrScanBusy) {
+        qrScanBusy = true;
+        try { scanQRFrame(); } finally { qrScanBusy = false; }
+    }
+    qrScanRAF = requestAnimationFrame(scanQRLoop);
+}
+
 function scanQRFrame() {
     if (!qrScanning || !qrScannerStream) return;
     const video = document.getElementById('qrLoginVideo');
-    if (!video || video.readyState < 2) return;
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
     try {
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const MAXW = 640;
+        const scale = Math.min(1, MAXW / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -16685,6 +16521,8 @@ function stopQRScanner() {
     qrTeacherPending = null;
     qrStudentPending = null;
     if (qrScanTimer) { clearInterval(qrScanTimer); qrScanTimer = null; }
+    if (qrScanRAF) { cancelAnimationFrame(qrScanRAF); qrScanRAF = null; }
+    qrScanBusy = false;
     if (qrScannerStream) { qrScannerStream.getTracks().forEach(function (t) { t.stop(); }); qrScannerStream = null; }
     const video = document.getElementById('qrLoginVideo');
     if (video) video.srcObject = null;
@@ -16725,23 +16563,6 @@ function startApp() {
             renderSchoolSwitcher('headerSchoolSelect');
         } else {
             headerSchoolSel.style.display = 'none';
-        }
-    }
-
-    const headerServerRow = document.getElementById('headerServerStatusRow');
-    if (headerServerRow) {
-        if (State.currentUser.type === 'superadmin') {
-            headerServerRow.style.display = 'flex';
-            const s = getServerSettings();
-            if (s.url) { checkServerConnection(); } else { setServerStatus('offline', 'No server configured.'); }
-            if (serverPollTimer) clearInterval(serverPollTimer);
-            serverPollTimer = setInterval(() => {
-                const cur = getServerSettings();
-                if (cur.url) checkServerConnection();
-            }, 30 * 1000);
-        } else {
-            headerServerRow.style.display = 'none';
-            if (serverPollTimer) { clearInterval(serverPollTimer); serverPollTimer = null; }
         }
     }
 
@@ -16941,7 +16762,6 @@ function openPage(name, el) {
         'id-template':'School ID Template'
     };
     document.getElementById('pageTitle').textContent = titles[name] || name;
-    if (name === 'data-manage') loadServerSettings();
     closeMobileSidebar();
 }
 
@@ -18089,6 +17909,8 @@ function showSubstituteQR(teacherId, date) {
 
 let attendanceScanStream = null;
 let attendanceScanTimer = null;
+let attendanceScanRAF = null;
+let attendanceScanBusy = false;
 let attendanceScanning = false;
 
 function toggleAttendanceScanner() {
@@ -18120,7 +17942,9 @@ function startAttendanceScanner() {
             sc.style.display = 'block';
             if (btn) btn.textContent = '📷 Scanning...';
             if (attendanceScanTimer) clearInterval(attendanceScanTimer);
-            attendanceScanTimer = setInterval(scanAttendanceFrame, 350);
+            if (attendanceScanRAF) cancelAnimationFrame(attendanceScanRAF);
+            attendanceScanBusy = false;
+            attendanceScanRAF = requestAnimationFrame(scanAttendanceLoop);
         })
         .catch(function () {
             if (status) status.textContent = 'Camera access denied. Please allow camera permission.';
@@ -18129,14 +17953,25 @@ function startAttendanceScanner() {
         });
 }
 
+function scanAttendanceLoop() {
+    if (!attendanceScanning || !attendanceScanStream) return;
+    if (!attendanceScanBusy) {
+        attendanceScanBusy = true;
+        try { scanAttendanceFrame(); } finally { attendanceScanBusy = false; }
+    }
+    attendanceScanRAF = requestAnimationFrame(scanAttendanceLoop);
+}
+
 function scanAttendanceFrame() {
     if (!attendanceScanning || !attendanceScanStream) return;
     const video = document.getElementById('attendanceScanVideo');
-    if (!video || video.readyState < 2) return;
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
     try {
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const MAXW = 640;
+        const scale = Math.min(1, MAXW / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -18225,6 +18060,8 @@ function exitSubstituteMode() {
 function stopAttendanceScanner() {
     attendanceScanning = false;
     if (attendanceScanTimer) { clearInterval(attendanceScanTimer); attendanceScanTimer = null; }
+    if (attendanceScanRAF) { cancelAnimationFrame(attendanceScanRAF); attendanceScanRAF = null; }
+    attendanceScanBusy = false;
     if (attendanceScanStream) { attendanceScanStream.getTracks().forEach(function (t) { t.stop(); }); attendanceScanStream = null; }
     const video = document.getElementById('attendanceScanVideo');
     if (video) video.srcObject = null;
