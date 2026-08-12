@@ -11519,6 +11519,11 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 </head>
 <body>
 
+<div id="bootOverlay" style="position:fixed;inset:0;background:#F8FAFC;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;color:#64748B;">
+    <div style="font-size:22px;font-weight:700;color:#2563EB;margin-bottom:8px;">SFAS School</div>
+    <div id="bootOverlayMsg" style="font-size:13px;">Loading data from cloud…</div>
+</div>
+
 <!-- ===== LOGIN PAGE ===== -->
 <div class="login-page" id="loginPage">
     <div class="login-left">
@@ -12145,6 +12150,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
                         <h3 class="form-section-title">📷 Teacher Sign-in QR</h3>
                         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Show this QR on the board. When a teacher scans it, their attendance is marked <strong>Present</strong> automatically.</p>
                         <button type="button" class="btn btn-gold btn-sm" id="teacherSigninQRBtn" onclick="showTeacherSigninQR()">🖨️ Show Sign-in QR</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="teacherSigninQRDownloadBtn" onclick="downloadTeacherSigninQR()">⬇️ Download QR</button>
                         <div id="teacherSigninQRDisplay" style="display:none;margin-top:12px;text-align:center;"></div>
                     </div>
                     <div id="teacherAttendanceSheet"></div>
@@ -13307,7 +13313,7 @@ const CLASS_LIST = ['LKG','UKG','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5
 const SUBJECTS = ['English','Mathematics','Science','Social Studies','Hindi','Computer Science','Arts','Physical Education','Music','Moral Science'];
 
 // ============================================================================
-// FIREBASE / FIRESTORE SYNC (offline-first: localStorage stays the local cache)
+// FIREBASE / FIRESTORE SYNC (Firestore is the source of truth; cache is in-memory only)
 // ============================================================================
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBs5Nxm8PZvsscChRMd8REat3hJat1mC9Q",
@@ -13336,17 +13342,11 @@ let cloudPullDone = false;   // initial pull finished (blocks default-seed write
 const cloudWriteTimers = {};
 const cloudPendingData = {};
 const cloudPendingDeletes = {};
-const CLOUD_META_KEY = 'sfa__cloudSyncMeta';
+let cloudMetaData = {};      // in-memory sync bookkeeping (server is the source of truth)
 
-function cloudMeta() {
-    try { return JSON.parse(localStorage.getItem(CLOUD_META_KEY) || '{}'); } catch (e) { return {}; }
-}
+function cloudMeta() { return cloudMetaData; }
 function cloudMetaSet(key, epochMs) {
-    try {
-        const m = cloudMeta();
-        m[key] = epochMs;
-        localStorage.setItem(CLOUD_META_KEY, JSON.stringify(m));
-    } catch (e) {}
+    cloudMetaData[key] = epochMs;
 }
 
 function loadFirebaseSDK(cb) {
@@ -13388,8 +13388,69 @@ function cloudDocRef(key) {
     return firestoreDb.collection('schools').doc(sid).collection('data').doc(key);
 }
 
+// Global (platform-level) keys are stored in a shared Firestore collection so they
+// live on the server, not in the browser. Local caching is in-memory only.
+const PLATFORM_DOC_MAP = {
+    'sfaSchoolRegistry': 'registry',
+    'sfaSuperAdminAuth': 'superadmin',
+    'sfaServerSettings': 'serverSettings',
+    'sfaCurrentSchoolId': 'currentSchool'
+};
+
+function platformDocRef(key) {
+    const docId = PLATFORM_DOC_MAP[key];
+    if (!docId) return null;
+    return firestoreDb.collection('_platform').doc(docId);
+}
+
+function platformWrite(key, data) {
+    if (!cloudAvailable || !firestoreDb) return;
+    const ref = platformDocRef(key);
+    if (!ref) return;
+    ref.set(
+        { data: data, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+    ).catch(function (e) {
+        console.warn('Firestore platform write failed for', key, e);
+    });
+}
+
+async function loadPlatformData() {
+    if (!cloudAvailable || !firestoreDb) return false;
+    let loaded = false;
+    try {
+        const snap = await firestoreDb.collection('_platform').get();
+        snap.forEach(function (doc) {
+            const d = doc.data();
+            if (!d || d.data === undefined) return;
+            const key = Object.keys(PLATFORM_DOC_MAP).find(k => PLATFORM_DOC_MAP[k] === doc.id);
+            if (!key) return;
+            memCache[key] = d.data;
+            loaded = true;
+        });
+        if (memCache['sfaCurrentSchoolId']) {
+            const reg = memCache['sfaSchoolRegistry'];
+            if (!Array.isArray(reg) || !reg.some(s => s && s.id === memCache['sfaCurrentSchoolId'])) {
+                delete memCache['sfaCurrentSchoolId'];
+            }
+        }
+    } catch (e) {
+        console.warn('Firestore platform pull failed:', e);
+    }
+    return loaded;
+}
+
 function cloudWrite(key, data) {
-    if (GLOBAL_KEYS.includes(key)) return;
+    if (GLOBAL_KEYS.includes(key)) {
+        if (PLATFORM_DOC_MAP[key]) {
+            clearTimeout(cloudWriteTimers[key]);
+            cloudWriteTimers[key] = setTimeout(function () {
+                delete cloudWriteTimers[key];
+                platformWrite(key, data);
+            }, 400);
+        }
+        return;
+    }
     cloudPendingData[key] = data;
     delete cloudPendingDeletes[key];
     clearTimeout(cloudWriteTimers[key]);
@@ -13449,7 +13510,18 @@ if (typeof window !== 'undefined') {
 }
 
 function cloudRemove(key) {
-    if (GLOBAL_KEYS.includes(key)) return;
+    if (GLOBAL_KEYS.includes(key)) {
+        if (PLATFORM_DOC_MAP[key]) {
+            clearTimeout(cloudWriteTimers[key]);
+            delete cloudWriteTimers[key];
+            delete cloudPendingData[key];
+            if (cloudAvailable && firestoreDb) {
+                const ref = platformDocRef(key);
+                if (ref) ref.delete().catch(function (e) { console.warn('platform delete failed', key, e); });
+            }
+        }
+        return;
+    }
     clearTimeout(cloudWriteTimers[key]);
     delete cloudWriteTimers[key];
     delete cloudPendingData[key];
@@ -13497,8 +13569,8 @@ function updateSaCloudStatus() {
     }
     if (loc) {
         loc.innerHTML = cloudAvailable && firestoreDb
-            ? '☁️ Firestore: <code style="font-size:10px;">schools/' + escapeHtml(getCurrentSchoolId()) + '/data</code><br>📦 + Browser (localStorage)'
-            : '📦 Browser (localStorage)';
+            ? '☁️ Firestore: <code style="font-size:10px;">schools/' + escapeHtml(getCurrentSchoolId()) + '/data</code>'
+            : '☁️ Firebase (cloud)';
     }
 }
 
@@ -13507,7 +13579,7 @@ function syncFromCloud() {
     const sid = getCurrentSchoolId();
     try {
         firestoreDb.collection('schools').doc(sid).collection('data').get()
-            .then(function (snap) {
+            .then(async function (snap) {
                 let changed = false;
                 let applied = 0;
                 const meta = cloudMeta();
@@ -13520,32 +13592,28 @@ function syncFromCloud() {
                         ? d.updatedAt.toMillis() : null;
                     const localTs = meta[doc.id] || 0;
                     if (cloudTs !== null && localTs > cloudTs) return;
+                    const cacheKey = Storage.scope(doc.id);
+                    const existingRaw = Object.prototype.hasOwnProperty.call(memCache, cacheKey)
+                        ? JSON.stringify(memCache[cacheKey])
+                        : null;
                     const raw = JSON.stringify(d.data);
-                    let existing = null;
-                    try { existing = localStorage.getItem(Storage.scope(doc.id)); } catch (e) {}
-                    if (existing !== raw) {
-                        try { localStorage.setItem(Storage.scope(doc.id), raw); } catch (e) {}
+                    if (existingRaw !== raw) {
+                        memCache[cacheKey] = d.data;
                         changed = true;
                         applied++;
                     }
                     if (cloudTs !== null) cloudMetaSet(doc.id, cloudTs);
                 });
+                const platformChanged = await loadPlatformData();
                 cloudPullDone = true;
                 setCloudStatus();
                 flushPendingCloud();
-                if (changed) {
+                finishBoot();
+                if (changed || platformChanged) {
                     console.log('Cloud sync: pulled', applied, 'key(s) from cloud');
+                    try { refreshStateFromCache(); } catch (e) { console.warn('refreshStateFromCache error:', e); }
+                    try { refreshCurrentPageData(); } catch (e) { console.warn('refreshCurrentPageData error:', e); }
                     try { showToast('☁️ Data synced from cloud', 'success'); } catch (e) {}
-                    try {
-                        if (sessionStorage.getItem('sfaCloudReloaded')) {
-                            console.log('Cloud sync: data applied in place, skipping reload to avoid refresh loop');
-                        } else {
-                            sessionStorage.setItem('sfaCloudReloaded', '1');
-                            setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
-                        }
-                    } catch (e) {
-                        setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
-                    }
                 } else {
                     console.log('Cloud sync: up to date');
                 }
@@ -13555,12 +13623,14 @@ function syncFromCloud() {
                 cloudPullDone = true;
                 setCloudStatus();
                 flushPendingCloud();
+                finishBoot();
             });
     } catch (e) {
         console.warn('Cloud pull error:', e);
         cloudPullDone = true;
         setCloudStatus();
         flushPendingCloud();
+        finishBoot();
     }
 }
 
@@ -13686,7 +13756,7 @@ async function uploadFirebaseBackup() {
     if (!confirm('Upload the full database to Firebase as a backup? This will replace the previous Firebase backup for all schools.')) return;
     setFirebaseBackupStatus('connecting', 'Uploading backup to Firebase...');
     try {
-        const payload = JSON.stringify(collectAllData());
+        const payload = JSON.stringify(await collectAllData());
         const sizeBytes = payload.length;
         const chunks = [];
         for (let i = 0; i < payload.length; i += FIREBASE_BACKUP_CHUNK_SIZE) {
@@ -13742,7 +13812,7 @@ async function downloadFirebaseBackup() {
             payload += c.data().data;
         }
         const parsed = JSON.parse(payload);
-        const count = restoreAllData(parsed);
+        const count = await restoreAllData(parsed);
         const blob = new Blob([JSON.stringify(parsed, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -13852,22 +13922,24 @@ const GLOBAL_KEYS = [
 // Only sfaSuperAdminAuth stays global, since one Super Admin oversees every school.
 
 function getSchoolRegistry() {
-    let reg = null;
-    try { reg = JSON.parse(localStorage.getItem('sfaSchoolRegistry') || 'null'); } catch (e) { reg = null; }
+    let reg = Storage.cacheGet('sfaSchoolRegistry', null);
     if (!Array.isArray(reg) || reg.length === 0) {
         reg = JSON.parse(JSON.stringify(DEFAULT_SCHOOLS));
-        try { localStorage.setItem('sfaSchoolRegistry', JSON.stringify(reg)); } catch (e) {}
     }
     reg = reg.filter(s => s && typeof s === 'object' && s.id);
     let changed = false;
     reg.forEach(s => { if (!s.status) { s.status = 'active'; changed = true; } if (s.domain === undefined) { s.domain = ''; changed = true; } });
-    if (changed) { try { localStorage.setItem('sfaSchoolRegistry', JSON.stringify(reg)); } catch (e) {} }
+    if (changed) Storage.cacheSet('sfaSchoolRegistry', reg);
     return reg;
 }
 
 function getCurrentSchoolId() {
     let id = null;
-    try { id = localStorage.getItem('sfaCurrentSchoolId'); } catch (e) { id = null; }
+    try {
+        const m = (location.hash || '').match(/s=([A-Za-z0-9_-]+)/);
+        if (m && m[1]) id = m[1];
+    } catch (e) {}
+    if (!id) id = Storage.cacheGet('sfaCurrentSchoolId', null);
     const reg = getSchoolRegistry();
     if (!id || !reg.some(s => s.id === id)) id = (reg[0] || { id: 's1' }).id;
     return id;
@@ -13904,20 +13976,31 @@ function defaultSchoolSettings() {
 // STORAGE
 // ============================================================================
 
+const memCache = {};
+
 const Storage = {
     scope: (key) => GLOBAL_KEYS.includes(key) ? key : getCurrentSchoolId() + '::' + key,
     get: (key, defaultVal) => {
-        try { const data = localStorage.getItem(Storage.scope(key)); return data ? (JSON.parse(data) ?? defaultVal) : defaultVal; }
-        catch { return defaultVal; }
+        const cacheKey = Storage.scope(key);
+        if (Object.prototype.hasOwnProperty.call(memCache, cacheKey)) return memCache[cacheKey] ?? defaultVal;
+        return defaultVal;
     },
     set: (key, data) => {
-        try { localStorage.setItem(Storage.scope(key), JSON.stringify(data)); }
-        catch (e) { console.warn('Storage write failed (quota exceeded?):', e); }
+        memCache[Storage.scope(key)] = data;
         cloudWrite(key, data);
     },
+    setLocal: (key, data) => {
+        memCache[Storage.scope(key)] = data;
+    },
     remove: (key) => {
-        try { localStorage.removeItem(Storage.scope(key)); } catch (e) {}
+        delete memCache[Storage.scope(key)];
         cloudRemove(key);
+    },
+    cacheSet: (cacheKey, data) => {
+        memCache[cacheKey] = data;
+    },
+    cacheGet: (cacheKey, defaultVal) => {
+        return Object.prototype.hasOwnProperty.call(memCache, cacheKey) ? memCache[cacheKey] ?? defaultVal : defaultVal;
     }
 };
 
@@ -13931,7 +14014,10 @@ function renderSchoolSwitcher(selectId) {
 
 function switchSchool(id) {
     if (!id) return;
-    try { localStorage.setItem('sfaCurrentSchoolId', id); } catch (e) {}
+    if (id === getCurrentSchoolId()) return;
+    Storage.cacheSet('sfaCurrentSchoolId', id);
+    platformWrite('sfaCurrentSchoolId', id);
+    try { location.hash = 's=' + id; } catch (e) {}
     location.reload();
 }
 
@@ -14014,7 +14100,7 @@ function initDefaultData() {
             { id:5, admissionNo:'ADM-2024-0005', name:'Mohammed Ali', gender:'Male', class:'Grade 7', section:'B', fatherName:'Ahmed Ali', motherName:'Fatima Ali', parentPhone:'9876543251', dob:'2014-03-10', religion:'Muslim', status:'Active', photo:'' },
             { id:6, admissionNo:'ADM-2024-0006', name:'Gurpreet Singh', gender:'Male', class:'Grade 9', section:'A', fatherName:'Harpreet Singh', motherName:'Jaspreet Kaur', parentPhone:'9876543261', dob:'2012-11-05', religion:'Sikh', status:'Active', photo:'' }
         ];
-        Storage.set('sfaStudents', State.students);
+        Storage.setLocal('sfaStudents', State.students);
     }
 
     if (State.teachers.length === 0) {
@@ -14023,27 +14109,83 @@ function initDefaultData() {
             { id:2, employeeId:'TCH-2024-002', name:'Prof. John Fernandes', subject:'Mathematics', subjects:['Grade 3:Mathematics','Grade 5:Mathematics'], classTeacher:'Grade 5 - A', qualification:'M.Sc. B.Ed.', experience:12, status:'Active', photo:'' },
             { id:3, employeeId:'TCH-2024-003', name:'Mrs. Sarah Thomas', subject:'Science', subjects:['Grade 6:Science'], classTeacher:'Grade 5 - A', qualification:'B.Sc. B.Ed.', experience:8, status:'Active', photo:'' }
         ];
-        Storage.set('sfaTeachers', State.teachers);
+        Storage.setLocal('sfaTeachers', State.teachers);
     }
 
     if (!Storage.get('sfaAdmissionFees')) {
-        Storage.set('sfaAdmissionFees', JSON.parse(JSON.stringify(DEFAULT_FEES)));
+        Storage.setLocal('sfaAdmissionFees', JSON.parse(JSON.stringify(DEFAULT_FEES)));
         State.admissionFees = JSON.parse(JSON.stringify(DEFAULT_FEES));
     }
     if (!Storage.get('sfaReAdmissionFees')) {
-        Storage.set('sfaReAdmissionFees', JSON.parse(JSON.stringify(DEFAULT_FEES)));
+        Storage.setLocal('sfaReAdmissionFees', JSON.parse(JSON.stringify(DEFAULT_FEES)));
         State.reAdmissionFees = JSON.parse(JSON.stringify(DEFAULT_FEES));
     }
     if (!Storage.get('sfaMarkPermissions')) {
-        Storage.set('sfaMarkPermissions', MarkPermissions);
+        Storage.setLocal('sfaMarkPermissions', MarkPermissions);
     }
     if (State.homework.length === 0) {
         State.homework = [
             { id:1, teacherId:2, teacherName:'Prof. John Fernandes', subject:'Mathematics', class:'Grade 5', section:'A', title:'Chapter 5 - Practice Problems', description:'Complete all problems from Chapter 5 (Exercises 1-20). Show all steps.', instructions:'1. Solve in notebook\n2. Show all working\n3. Check answers', dueDate:'2024-10-20', createdDate:'2024-10-15', priority:'High', status:'Active', attachments:['Chapter5_Practice.pdf'], views:0 },
             { id:2, teacherId:3, teacherName:'Mrs. Sarah Thomas', subject:'Science', class:'Grade 5', section:'A', title:'Plant Life - Parts and Functions', description:'Read the chapter on Plant Life and write a summary.', instructions:'1. Read Chapter 3\n2. Write summary\n3. Draw and label a plant', dueDate:'2024-10-22', createdDate:'2024-10-16', priority:'Medium', status:'Active', attachments:['Plant_Diagram.pdf'], views:0 }
         ];
-        Storage.set('sfaHomework', State.homework);
+        Storage.setLocal('sfaHomework', State.homework);
     }
+}
+
+// ============================================================================
+// REBUILD STATE FROM IN-MEMORY CACHE (after a cloud pull)
+// ============================================================================
+
+function refreshStateFromCache() {
+    State.students = Storage.get('sfaStudents', State.students);
+    State.teachers = Storage.get('sfaTeachers', State.teachers);
+    State.feeRecords = Storage.get('sfaFees', State.feeRecords);
+    State.teacherAttendance = Storage.get('sfaTeacherAttendance', State.teacherAttendance);
+    State.studentAttendance = Storage.get('sfaStudentAttendance', State.studentAttendance);
+    State.qrCodes = Storage.get('sfaQRCodes', State.qrCodes);
+    State.notices = Storage.get('sfaNotices', State.notices);
+    State.marksData = Storage.get('sfaMarks', State.marksData);
+    State.admissionFees = Storage.get('sfaAdmissionFees', State.admissionFees);
+    State.reAdmissionFees = Storage.get('sfaReAdmissionFees', State.reAdmissionFees);
+    State.homework = Storage.get('sfaHomework', State.homework);
+    State.homeworkViews = Storage.get('sfaHomeworkViews', State.homeworkViews);
+    State.supportStaff = Storage.get('sfaSupportStaff', State.supportStaff);
+    State.lkgApplications = Storage.get('sfalkgApplications', State.lkgApplications);
+    State.generalApplications = Storage.get('sfageneralApplications', State.generalApplications);
+    State.schoolSettings = Storage.get('sfaSchoolSettings', State.schoolSettings);
+    Object.assign(MarkSettings, Storage.get('sfaMarkSettings', MarkSettings));
+    Object.assign(MarkPermissions, Storage.get('sfaMarkPermissions', MarkPermissions));
+}
+
+function refreshCurrentPageData() {
+    try { applySchoolSettings(); } catch (e) {}
+    try { renderSchoolSwitcher('headerSchoolSelect'); } catch (e) {}
+    try { renderPlatformTotals(); } catch (e) {}
+    try { renderOnlineStatus(); } catch (e) {}
+    if (!State.currentUser) return;
+    try {
+        if (State.currentUser.type === 'admin') {
+            if (typeof initDashboard === 'function') initDashboard();
+            if (typeof loadMarkPermissionsUI === 'function') loadMarkPermissionsUI();
+            if (typeof loadPrincipalPerformance === 'function') loadPrincipalPerformance();
+            if (typeof loadAdmissions === 'function') loadAdmissions('all');
+        } else if (State.currentUser.type === 'superadmin') {
+            if (typeof loadSuperDashboard === 'function') loadSuperDashboard();
+            if (typeof loadSchoolManager === 'function') loadSchoolManager();
+            if (typeof loadUserManage === 'function') loadUserManage();
+        } else if (State.currentUser.type === 'accountant') {
+            if (typeof loadFeeRecords === 'function') loadFeeRecords();
+        } else if (State.currentUser.type === 'teacher') {
+            if (typeof loadTeacherHomework === 'function') loadTeacherHomework();
+            if (typeof loadTeacherAttendance === 'function') loadTeacherAttendance();
+            if (typeof loadStudents === 'function') loadStudents();
+        } else {
+            if (typeof loadStudentSelf === 'function') loadStudentSelf();
+            if (typeof loadStudentHomework === 'function') loadStudentHomework();
+            if (typeof loadStudentMarks === 'function') loadStudentMarks();
+        }
+        if (typeof loadNoticeBoard === 'function') loadNoticeBoard();
+    } catch (e) { console.warn('refreshCurrentPageData error:', e); }
 }
 
 // ============================================================================
@@ -14925,28 +15067,49 @@ const SUPER_ADMIN_KEYS = [
     'sfaPrincipalAuth','sfaAccountantAuth','sfaSuperAdminAuth','theme'
 ];
 
-function computePlatformTotals() {
+async function computePlatformTotals() {
     const reg = getSchoolRegistry();
     let students = 0, teachers = 0, revenue = 0;
-    reg.forEach(s => {
-        try { const arr = JSON.parse(localStorage.getItem(s.id + '::sfaStudents') || '[]'); students += Array.isArray(arr) ? arr.length : 0; } catch (e) {}
-        try { const arr = JSON.parse(localStorage.getItem(s.id + '::sfaTeachers') || '[]'); teachers += Array.isArray(arr) ? arr.length : 0; } catch (e) {}
-        try {
-            const fees = JSON.parse(localStorage.getItem(s.id + '::sfaFees') || '[]');
-            if (Array.isArray(fees)) revenue += fees.reduce((sum, r) => sum + (Number(r.total) || Number(r.amount) || 0), 0);
-        } catch (e) {}
-    });
+    if (cloudAvailable && firestoreDb) {
+        for (const s of reg) {
+            if (!s || !s.id) continue;
+            try {
+                const snap = await firestoreDb.collection('schools').doc(s.id).collection('data').get();
+                snap.forEach(function (d) {
+                    const v = d.data();
+                    if (!v || v.data === undefined) return;
+                    if (d.id === 'sfaStudents' && Array.isArray(v.data)) students += v.data.length;
+                    else if (d.id === 'sfaTeachers' && Array.isArray(v.data)) teachers += v.data.length;
+                    else if (d.id === 'sfaFees' && Array.isArray(v.data)) {
+                        revenue += v.data.reduce((sum, r) => sum + (Number(r.total) || Number(r.amount) || 0), 0);
+                    }
+                });
+            } catch (e) {}
+        }
+    } else {
+        reg.forEach(s => {
+            try {
+                const st = Storage.cacheGet(s.id + '::sfaStudents', []);
+                students += Array.isArray(st) ? st.length : 0;
+                const tt = Storage.cacheGet(s.id + '::sfaTeachers', []);
+                teachers += Array.isArray(tt) ? tt.length : 0;
+                const fees = Storage.cacheGet(s.id + '::sfaFees', []);
+                if (Array.isArray(fees)) revenue += fees.reduce((sum, r) => sum + (Number(r.total) || Number(r.amount) || 0), 0);
+            } catch (e) {}
+        });
+    }
     return { schools: reg.length, students, teachers, principals: reg.length, revenue };
 }
 
 function renderPlatformTotals() {
-    const t = computePlatformTotals();
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set('ptSchools', t.schools);
-    set('ptStudents', t.students);
-    set('ptTeachers', t.teachers);
-    set('ptPrincipals', t.principals);
-    set('ptRevenue', '₹' + t.revenue.toLocaleString('en-IN'));
+    computePlatformTotals().then(function (t) {
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        set('ptSchools', t.schools);
+        set('ptStudents', t.students);
+        set('ptTeachers', t.teachers);
+        set('ptPrincipals', t.principals);
+        set('ptRevenue', '₹' + t.revenue.toLocaleString('en-IN'));
+    }).catch(function (e) { console.warn('renderPlatformTotals error:', e); });
 }
 
 function loadSuperDashboard() {
@@ -14972,7 +15135,7 @@ function loadSuperDashboard() {
         <div class="sa-status-row"><span>🏫 School</span><strong>${escapeHtml(s.schoolName || 'St. Francis of Assisi School')}</strong></div>
         <div class="sa-status-row"><span>📅 Academic Year</span><strong>${escapeHtml(s.academicYear || '2026-2027')}</strong></div>
         <div class="sa-status-row"><span>👑 Principal</span><strong>${escapeHtml(s.principalName || 'N/A')}</strong></div>
-        <div class="sa-status-row"><span>🗄️ Data Storage</span><strong>${cloudAvailable ? 'Browser (localStorage) + Firebase' : 'Browser (localStorage)'}</strong></div>
+        <div class="sa-status-row"><span>🗄️ Data Storage</span><strong>☁️ Firebase (cloud)</strong></div>
         <div class="sa-status-row"><span>👤 Logged In As</span><strong>${escapeHtml(State.currentUser?.name || 'N/A')}</strong></div>
     `;
 
@@ -15067,35 +15230,39 @@ function saveRoleCreds(role) {
 }
 
 function saveSchoolRegistry(reg) {
-    try { localStorage.setItem('sfaSchoolRegistry', JSON.stringify(reg)); } catch (e) { console.warn('Failed to save school registry:', e); }
+    Storage.cacheSet('sfaSchoolRegistry', reg);
+    platformWrite('sfaSchoolRegistry', reg);
 }
 
-function schoolStorageUsage(id) {
-    let bytes = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.indexOf(id + '::') === 0) {
-            const v = localStorage.getItem(k) || '';
-            bytes += k.length + v.length;
-        }
+function schoolStorageUsage() {
+    return '☁️ Cloud';
+}
+
+async function schoolGet(schoolId, key, defaultVal) {
+    if (schoolId === getCurrentSchoolId()) return Storage.get(key, defaultVal);
+    if (cloudAvailable && firestoreDb) {
+        try {
+            const doc = await firestoreDb.collection('schools').doc(schoolId).collection('data').doc(key).get();
+            if (doc.exists && doc.data() && doc.data().data !== undefined) return doc.data().data;
+        } catch (e) {}
     }
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-}
-
-function schoolGet(schoolId, key, defaultVal) {
-    try {
-        const raw = localStorage.getItem(schoolId + '::' + key);
-        return raw ? (JSON.parse(raw) ?? defaultVal) : defaultVal;
-    } catch (e) { return defaultVal; }
+    return Storage.cacheGet(schoolId + '::' + key, defaultVal);
 }
 
 function schoolSet(schoolId, key, val) {
-    try { localStorage.setItem(schoolId + '::' + key, JSON.stringify(val)); } catch (e) {}
+    Storage.cacheSet(schoolId + '::' + key, val);
+    if (schoolId === getCurrentSchoolId()) {
+        Storage.set(key, val);
+        return;
+    }
+    if (cloudAvailable && firestoreDb) {
+        firestoreDb.collection('schools').doc(schoolId).collection('data').doc(key)
+            .set({ data: val, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+            .catch(function (e) { console.warn('schoolSet write failed', schoolId, key, e); });
+    }
 }
 
-function loadUserManage() {
+async function loadUserManage() {
     const sel = document.getElementById('umSchoolSelect');
     if (!sel) return;
     const reg = getSchoolRegistry();
@@ -15105,8 +15272,8 @@ function loadUserManage() {
     }
     const schoolId = sel.value || getCurrentSchoolId();
 
-    const principal = schoolGet(schoolId, 'sfaPrincipalAuth', { email: 'principal@stfrancis.edu', password: 'admin123', enabled: true });
-    const accountant = schoolGet(schoolId, 'sfaAccountantAuth', { email: 'accounts@stfrancis.edu', password: 'account123', enabled: true });
+    const principal = await schoolGet(schoolId, 'sfaPrincipalAuth', { email: 'principal@stfrancis.edu', password: 'admin123', enabled: true });
+    const accountant = await schoolGet(schoolId, 'sfaAccountantAuth', { email: 'accounts@stfrancis.edu', password: 'account123', enabled: true });
     document.getElementById('umAdminLogins').innerHTML = `
         <div class="sa-user-row">
             <span>👑 Principal</span><strong>${escapeHtml(principal.email)}</strong>
@@ -15120,7 +15287,7 @@ function loadUserManage() {
         </div>
     `;
 
-    const teachers = schoolGet(schoolId, 'sfaTeachers', []);
+    const teachers = await schoolGet(schoolId, 'sfaTeachers', []);
     const tList = document.getElementById('umTeacherList');
     tList.innerHTML = teachers.length ? teachers.map(t => `
         <div class="sa-user-row" style="flex-wrap:wrap;gap:8px;">
@@ -15132,7 +15299,7 @@ function loadUserManage() {
         </div>
     `).join('') : '<p style="color:var(--text-secondary);font-size:12px;">No teachers in this school yet.</p>';
 
-    const students = schoolGet(schoolId, 'sfaStudents', []);
+    const students = await schoolGet(schoolId, 'sfaStudents', []);
     const sList = document.getElementById('umStudentList');
     sList.innerHTML = students.length ? students.map(s => `
         <div class="sa-user-row" style="flex-wrap:wrap;gap:8px;">
@@ -15161,16 +15328,16 @@ function umSaveAccount() {
     showToast('✅ ' + (role === 'principal' ? 'Principal' : 'Accountant') + ' account saved!', 'success');
 }
 
-function umToggleAdminEnabled(schoolId, key) {
-    const creds = schoolGet(schoolId, key, {});
+async function umToggleAdminEnabled(schoolId, key) {
+    const creds = await schoolGet(schoolId, key, {});
     creds.enabled = creds.enabled === false ? true : false;
     schoolSet(schoolId, key, creds);
     loadUserManage();
     showToast(creds.enabled ? '▶️ Account enabled.' : '⏸️ Account disabled.', 'success');
 }
 
-function umToggleTeacherEnabled(schoolId, teacherId) {
-    const teachers = schoolGet(schoolId, 'sfaTeachers', []);
+async function umToggleTeacherEnabled(schoolId, teacherId) {
+    const teachers = await schoolGet(schoolId, 'sfaTeachers', []);
     const t = teachers.find(x => x.id === teacherId);
     if (!t) return;
     t.enabled = t.enabled === false ? true : false;
@@ -15180,8 +15347,8 @@ function umToggleTeacherEnabled(schoolId, teacherId) {
     showToast(t.enabled ? '▶️ Teacher enabled.' : '⏸️ Teacher disabled.', 'success');
 }
 
-function umResetTeacherPassword(schoolId, teacherId) {
-    const teachers = schoolGet(schoolId, 'sfaTeachers', []);
+async function umResetTeacherPassword(schoolId, teacherId) {
+    const teachers = await schoolGet(schoolId, 'sfaTeachers', []);
     const t = teachers.find(x => x.id === teacherId);
     if (!t) return;
     const newPwd = prompt('New password for ' + t.name + ' (leave blank to reset to default "teacher123"):', '');
@@ -15189,11 +15356,12 @@ function umResetTeacherPassword(schoolId, teacherId) {
     t.password = newPwd.trim() || null;
     schoolSet(schoolId, 'sfaTeachers', teachers);
     if (schoolId === getCurrentSchoolId()) State.teachers = teachers;
+    loadUserManage();
     showToast('🔑 Password reset for ' + t.name + '.', 'success');
 }
 
-function umToggleStudentEnabled(schoolId, studentId) {
-    const students = schoolGet(schoolId, 'sfaStudents', []);
+async function umToggleStudentEnabled(schoolId, studentId) {
+    const students = await schoolGet(schoolId, 'sfaStudents', []);
     const s = students.find(x => x.id === studentId);
     if (!s) return;
     s.enabled = s.enabled === false ? true : false;
@@ -15203,8 +15371,8 @@ function umToggleStudentEnabled(schoolId, studentId) {
     showToast(s.enabled ? '▶️ Student enabled.' : '⏸️ Student disabled.', 'success');
 }
 
-function umResetStudentPassword(schoolId, studentId) {
-    const students = schoolGet(schoolId, 'sfaStudents', []);
+async function umResetStudentPassword(schoolId, studentId) {
+    const students = await schoolGet(schoolId, 'sfaStudents', []);
     const s = students.find(x => x.id === studentId);
     if (!s) return;
     const newPwd = prompt('New password for ' + s.name + ' (leave blank to reset to default: date of birth):', '');
@@ -15212,6 +15380,7 @@ function umResetStudentPassword(schoolId, studentId) {
     s.loginPasswordOverride = newPwd.trim() || null;
     schoolSet(schoolId, 'sfaStudents', students);
     if (schoolId === getCurrentSchoolId()) State.students = students;
+    loadUserManage();
     showToast('🔑 Password reset for ' + s.name + '.', 'success');
 }
 
@@ -15234,7 +15403,7 @@ function loadSchoolManager() {
             <span style="font-size:18px;flex-shrink:0;">🏫</span>
             <div style="flex:1;min-width:170px;">
                 <strong>${escapeHtml(s.name)}</strong>
-                <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(s.tagline || 'No tagline')}${s.domain ? ' • 🌐 ' + escapeHtml(s.domain) : ''} • 💾 ${schoolStorageUsage(s.id)}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(s.tagline || 'No tagline')}${s.domain ? ' • 🌐 ' + escapeHtml(s.domain) : ''} • 💾 ${schoolStorageUsage()}</div>
             </div>
             ${s.id === cur ? '<span class="badge badge-success">Current</span>' : ''}
             <span class="badge ${suspended ? 'badge-danger' : 'badge-success'}">${suspended ? 'Suspended' : 'Active'}</span>
@@ -15275,10 +15444,13 @@ function addSchool() {
     const id = 's' + Date.now();
     reg.push({ id, name, tagline, domain });
     saveSchoolRegistry(reg);
-    const cur = getCurrentSchool();
     const defaults = { ...defaultSchoolSettings(), schoolName: name, tagline: tagline };
-    const settingsKey = id + '::sfaSchoolSettings';
-    try { localStorage.setItem(settingsKey, JSON.stringify(defaults)); } catch (e) {}
+    Storage.cacheSet(id + '::sfaSchoolSettings', defaults);
+    if (cloudAvailable && firestoreDb) {
+        firestoreDb.collection('schools').doc(id).collection('data').doc('sfaSchoolSettings')
+            .set({ data: defaults, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+            .catch(function (e) { console.warn('addSchool settings write failed:', e); });
+    }
     document.getElementById('newSchoolName').value = '';
     document.getElementById('newSchoolTagline').value = '';
     document.getElementById('newSchoolDomain').value = '';
@@ -15323,11 +15495,13 @@ function deleteSchool(id) {
     }
     const school = reg.find(s => s.id === id);
     if (!school) return;
-    if (!confirm('Delete "' + school.name + '"? It will no longer appear on the website. Its saved data will remain in this browser until cleared.')) return;
+    if (!confirm('Delete "' + school.name + '"? It will no longer appear on the website. Its saved data will remain on the server until cleared.')) return;
     const newReg = reg.filter(s => s.id !== id);
     saveSchoolRegistry(newReg);
     if (getCurrentSchoolId() === id) {
-        try { localStorage.setItem('sfaCurrentSchoolId', newReg[0].id); } catch (e) {}
+        Storage.cacheSet('sfaCurrentSchoolId', newReg[0].id);
+        platformWrite('sfaCurrentSchoolId', newReg[0].id);
+        try { location.hash = 's=' + newReg[0].id; } catch (e) {}
     }
     loadSchoolManager();
     showToast('✅ School "' + school.name + '" deleted.', 'success');
@@ -15338,31 +15512,69 @@ function switchToSchool(id) {
     switchSchool(id);
 }
 
-function collectAllData() {
+async function collectAllData() {
     const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        const v = localStorage.getItem(k);
-        if (v === null) continue;
-        try { data[k] = JSON.parse(v); } catch { data[k] = v; }
+    const reg = getSchoolRegistry();
+    if (cloudAvailable && firestoreDb) {
+        for (const s of reg) {
+            if (!s || !s.id) continue;
+            try {
+                const snap = await firestoreDb.collection('schools').doc(s.id).collection('data').get();
+                snap.forEach(function (d) {
+                    const v = d.data();
+                    if (v && v.data !== undefined) data[s.id + '::' + d.id] = v.data;
+                });
+            } catch (e) {}
+        }
+        try {
+            const psnap = await firestoreDb.collection('_platform').get();
+            psnap.forEach(function (d) {
+                const v = d.data();
+                if (!v || v.data === undefined) return;
+                const key = Object.keys(PLATFORM_DOC_MAP).find(k => PLATFORM_DOC_MAP[k] === d.id);
+                if (key) data[key] = v.data;
+            });
+        } catch (e) {}
     }
+    Object.keys(memCache).forEach(function (k) {
+        if (!Object.prototype.hasOwnProperty.call(data, k)) data[k] = memCache[k];
+    });
     return data;
 }
 
-function restoreAllData(payload) {
+async function restoreAllData(payload) {
     const data = (payload && payload.data && typeof payload.data === 'object') ? payload.data : payload;
     if (!data || typeof data !== 'object') throw new Error('Invalid server/backup data.');
     let count = 0;
     for (const k of Object.keys(data)) {
         if (k === 'app' || k === 'version' || k === 'exportedAt') continue;
         if (data[k] === null || data[k] === undefined) continue;
-        try { localStorage.setItem(k, JSON.stringify(data[k])); count++; } catch (e) {}
+        const m = k.match(/^([A-Za-z0-9_-]+)::(.+)$/);
+        if (m) {
+            const sid = m[1], key = m[2];
+            memCache[k] = data[k];
+            if (sid === getCurrentSchoolId()) {
+                Storage.set(key, data[k]);
+            } else if (cloudAvailable && firestoreDb) {
+                firestoreDb.collection('schools').doc(sid).collection('data').doc(key)
+                    .set({ data: data[k], updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+                    .catch(function (e) { console.warn('restore write failed', k, e); });
+            }
+        } else if (PLATFORM_DOC_MAP[k]) {
+            memCache[k] = data[k];
+            platformWrite(k, data[k]);
+        } else {
+            memCache[k] = data[k];
+        }
+        count++;
     }
+    refreshStateFromCache();
     return count;
 }
 
-function exportAllData() {
-    const blob = new Blob([JSON.stringify({ app: 'sfas-school', version: 6.1, exportedAt: new Date().toISOString(), data: collectAllData() }, null, 2)], { type: 'application/json' });
+async function exportAllData() {
+    const data = await collectAllData();
+    const blob = new Blob([JSON.stringify({ app: 'sfas-school', version: 6.1, exportedAt: new Date().toISOString(), data: data }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'SFAS_Backup_' + new Date().toISOString().split('T')[0] + '.json';
@@ -15378,9 +15590,12 @@ function importAllData(input) {
     reader.onload = function (ev) {
         try {
             const parsed = JSON.parse(ev.target.result);
-            const count = restoreAllData(parsed);
-            showToast('✅ Restored ' + count + ' data entries. Reloading...', 'success');
-            setTimeout(() => location.reload(), 1200);
+            restoreAllData(parsed).then(function (count) {
+                try { refreshCurrentPageData(); } catch (e) {}
+                showToast('✅ Restored ' + count + ' data entries.', 'success');
+            }).catch(function (e) {
+                showToast('❌ Import failed: ' + e.message, 'warning');
+            });
         } catch (e) {
             showToast('❌ Import failed: ' + e.message, 'warning');
         }
@@ -15480,16 +15695,23 @@ function resetAllData() {
     if (!confirm('Reset THIS school\'s data to the default demo data? This cannot be undone. (Other schools are not affected.)')) return;
     SUPER_ADMIN_KEYS.forEach(k => {
         if (k !== 'sfaPrincipalAuth' && k !== 'sfaAccountantAuth' && k !== 'sfaSuperAdminAuth' && k !== 'theme') {
-            localStorage.removeItem(Storage.scope(k));
+            delete memCache[Storage.scope(k)];
+            cloudRemove(k);
         }
     });
+    State.students = []; State.teachers = []; State.homework = []; State.feeRecords = [];
+    initDefaultData();
     showToast('🔄 Data reset to demo. Reloading...', 'success');
     setTimeout(() => location.reload(), 1200);
 }
 
 function clearAllData() {
     if (!confirm('⚠️ DELETE ALL of THIS school\'s data permanently? This cannot be undone. (Other schools are not affected.)')) return;
-    SUPER_ADMIN_KEYS.forEach(k => localStorage.removeItem(Storage.scope(k)));
+    SUPER_ADMIN_KEYS.forEach(k => {
+        if (k === 'theme') return;
+        delete memCache[Storage.scope(k)];
+        cloudRemove(k);
+    });
     showToast('🗑️ All data cleared. Reloading...', 'success');
     setTimeout(() => location.reload(), 1200);
 }
@@ -16123,6 +16345,14 @@ function doLogin() {
     const errorEl = document.getElementById('loginError');
     if (errorEl) errorEl.classList.remove('show');
 
+    if (!bootResolved) {
+        if (errorEl) {
+            errorEl.textContent = '⏳ Syncing data from the server, please wait a moment…';
+            errorEl.classList.add('show');
+        }
+        return false;
+    }
+
     const id = document.getElementById('loginId')?.value?.trim() || '';
     const pwd = document.getElementById('loginPassword')?.value?.trim() || '';
 
@@ -16325,6 +16555,19 @@ let qrScanning = false;
 let qrTeacherPending = null;
 let qrStudentPending = null;
 
+function enableCameraAutoFocus(stream) {
+    if (!stream) return;
+    const track = stream.getVideoTracks && stream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== 'function' || typeof track.applyConstraints !== 'function') return;
+    let capabilities = null;
+    try { capabilities = track.getCapabilities(); } catch (e) {}
+    if (!capabilities || !capabilities.focusMode) return;
+    const modes = Array.isArray(capabilities.focusMode) ? capabilities.focusMode : [capabilities.focusMode];
+    if (modes.indexOf('continuous') !== -1) {
+        track.applyConstraints({ focusMode: 'continuous', advanced: [{ focusMode: 'continuous' }] }).catch(function () {});
+    }
+}
+
 function toggleQRScanner() {
     const sc = document.getElementById('qrLoginScanner');
     if (!sc) return;
@@ -16353,12 +16596,13 @@ function startQRScanner() {
         return;
     }
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', focusMode: 'continuous', advanced: [{ focusMode: 'continuous' }] }, audio: false })
         .then(function (stream) {
             qrScannerStream = stream;
             qrScanning = true;
             video.srcObject = stream;
             video.play().catch(function () {});
+            enableCameraAutoFocus(stream);
             sc.style.display = 'block';
             if (qrScanTimer) clearInterval(qrScanTimer);
             if (qrScanRAF) cancelAnimationFrame(qrScanRAF);
@@ -17881,6 +18125,26 @@ function showTeacherSigninQR() {
     }
 }
 
+function downloadTeacherSigninQR() {
+    const display = document.getElementById('teacherSigninQRDisplay');
+    if (!display) return;
+    const canvas = display.querySelector('canvas');
+    if (!canvas) {
+        showToast('Please generate the Sign-in QR first.', 'warning');
+        return;
+    }
+    const date = new Date().toISOString().split('T')[0];
+    const school = (State.schoolSettings && State.schoolSettings.schoolName) || 'School';
+    const safe = ('Teacher_Signin_' + school + '_' + date).replace(/[^a-z0-9]+/gi, '_');
+    const link = document.createElement('a');
+    link.download = safe + '_QR.png';
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showToast('⬇️ Sign-in QR downloaded!', 'success');
+}
+
 function showSubstituteQR(teacherId, date) {
     const teacher = State.teachers.find(t => t.id === teacherId);
     if (!teacher) return;
@@ -17933,12 +18197,13 @@ function startAttendanceScanner() {
         if (btn) btn.textContent = '▶ Start Scanner';
         return;
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', focusMode: 'continuous', advanced: [{ focusMode: 'continuous' }] }, audio: false })
         .then(function (stream) {
             attendanceScanStream = stream;
             attendanceScanning = true;
             video.srcObject = stream;
             video.play().catch(function () {});
+            enableCameraAutoFocus(stream);
             sc.style.display = 'block';
             if (btn) btn.textContent = '📷 Scanning...';
             if (attendanceScanTimer) clearInterval(attendanceScanTimer);
@@ -19903,7 +20168,23 @@ function stopMeetingVideo() {
 
 try { initDefaultData(); } catch (e) { console.error('initDefaultData error:', e); }
 
+// Boot gate: keep the overlay up until the first cloud sync finishes, so users
+// never interact with demo data that is about to be replaced by the server.
+let bootResolved = false;
+let bootTimer = null;
+function finishBoot() {
+    if (bootResolved) return;
+    bootResolved = true;
+    if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
+    const ov = document.getElementById('bootOverlay');
+    if (ov) ov.style.display = 'none';
+}
+
 try { kickOffCloud(); } catch (e) { console.warn('kickOffCloud error:', e); }
+bootTimer = setTimeout(function () {
+    console.warn('Cloud sync timed out; proceeding with local data.');
+    finishBoot();
+}, 8000);
 
 let savedTheme = null;
 try { savedTheme = localStorage.getItem('theme'); } catch (e) {}
