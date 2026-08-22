@@ -21,7 +21,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     </script>
     <script>
 (function webpackUniversalModuleDefinition(root, factory) {
-	if(typeof exports === 'object' && typeof module === 'object')
+	if(typeof exports ===    'object' && typeof module === 'object')
 		module.exports = factory();
 	else if(typeof define === 'function' && define.amd)
 		define([], factory);
@@ -14147,6 +14147,35 @@ function initDefaultData() {
     }
 }
 
+function fixDuplicateTeacherIds() {
+    const year = new Date().getFullYear();
+    const prefix = 'TCH-' + year + '-';
+    const seen = new Set();
+    let changed = false;
+
+    State.teachers.forEach(t => {
+        const eid = t.employeeId || '';
+        if (!eid || seen.has(eid)) {
+            const existingNums = State.teachers
+                .map(x => x.employeeId || '')
+                .filter(x => x.startsWith(prefix))
+                .map(x => parseInt(x.replace(prefix, ''), 10))
+                .filter(n => !isNaN(n));
+            const maxNum = existingNums.length > 0 ? Math.max(...existingNums) : 0;
+            const nextNum = maxNum + 1;
+            t.employeeId = prefix + String(nextNum).padStart(3, '0');
+            seen.add(t.employeeId);
+            changed = true;
+        } else {
+            seen.add(eid);
+        }
+    });
+
+    if (changed) {
+        Storage.set('sfaTeachers', State.teachers);
+    }
+}
+
 // ============================================================================
 // REBUILD STATE FROM IN-MEMORY CACHE (after a cloud pull)
 // ============================================================================
@@ -14170,6 +14199,7 @@ function refreshStateFromCache() {
     State.schoolSettings = Storage.get('sfaSchoolSettings', State.schoolSettings);
     Object.assign(MarkSettings, Storage.get('sfaMarkSettings', MarkSettings));
     Object.assign(MarkPermissions, Storage.get('sfaMarkPermissions', MarkPermissions));
+    fixDuplicateTeacherIds();
 }
 
 function refreshCurrentPageData() {
@@ -16561,6 +16591,22 @@ function showToast(message, type = 'info') {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+
+    if (type === 'error' || type === 'warning') {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = type === 'error' ? 300 : 440;
+            gain.gain.value = 0.3;
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+            osc.stop(ctx.currentTime + 0.5);
+        } catch (e) {}
+    }
 }
 
 function closeModal(id) {
@@ -17765,6 +17811,18 @@ function populateClassTeacherOptions() {
     sel.innerHTML = opts;
 }
 
+function generateUniqueTeacherId() {
+    const year = new Date().getFullYear();
+    const prefix = 'TCH-' + year + '-';
+    const existing = State.teachers
+        .map(t => t.employeeId || '')
+        .filter(eid => eid.startsWith(prefix))
+        .map(eid => parseInt(eid.replace(prefix, ''), 10))
+        .filter(n => !isNaN(n));
+    const maxNum = existing.length > 0 ? Math.max(...existing) : 0;
+    return prefix + String(maxNum + 1).padStart(3, '0');
+}
+
 function showTeacherForm(teacherId) {
     const card = document.getElementById('teacherFormCard');
     card.style.display = 'block';
@@ -17816,9 +17874,7 @@ function showTeacherForm(teacherId) {
         document.getElementById('tchId').value = '';
         document.getElementById('teacherForm').reset();
         removeTeacherCertificate();
-        const year = new Date().getFullYear();
-        const next = String(State.teachers.length + 1).padStart(3, '0');
-        document.getElementById('tchEmpIdPreview').textContent = 'TCH-' + year + '-' + next;
+        document.getElementById('tchEmpIdPreview').textContent = generateUniqueTeacherId();
         populateSubjectGrid(null);
     }
 }
@@ -17856,9 +17912,7 @@ function saveTeacher() {
         const existing = State.teachers.find(t => t.id === parseInt(id));
         if (existing) Object.assign(existing, teacherData);
     } else {
-        const year = new Date().getFullYear();
-        const next = String(State.teachers.length + 1).padStart(3, '0');
-        State.teachers.push({ id: Date.now(), employeeId: 'TCH-' + year + '-' + next, ...teacherData });
+        State.teachers.push({ id: Date.now(), employeeId: generateUniqueTeacherId(), ...teacherData });
     }
 
     Storage.set('sfaTeachers', State.teachers);
